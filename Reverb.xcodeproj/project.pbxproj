@@ -1,0 +1,424 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		00572E9E2E2D416100CBAA77 /* CustomReverbSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00572E9D2E2D415B00CBAA77 /* CustomReverbSettings.swift */; };
+		00AE11E52DD3832C0013B491 /* CustomReverbView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00AE11E42DD383230013B491 /* CustomReverbView.swift */; };
+		00C17FB82D8B280200930ED5 /* AudioEngineService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00C17FB22D8B280200930ED5 /* AudioEngineService.swift */; };
+		00C17FB92D8B280200930ED5 /* RecordingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00C17FB32D8B280200930ED5 /* RecordingService.swift */; };
+		00C17FBA2D8B280200930ED5 /* ReverbPreset.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00C17FB02D8B280200930ED5 /* ReverbPreset.swift */; };
+		00C17FBB2D8B280200930ED5 /* AudioManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00C17FB62D8B280200930ED5 /* AudioManager.swift */; };
+		00E061422E2C5EBC00CE6783 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00E061412E2C5EB800CE6783 /* ContentView.swift */; };
+		A1A1A1A1A1A1A1A1A1A1A1A1 /* ReverbApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A1A1A1A1A1A1A1A1A1A1A2 /* ReverbApp.swift */; };
+		A1A1A1A1A1A1A1A1A1A1A1A5 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A1A1A1A1A1A1A1A1A1A1A1A6 /* Assets.xcassets */; };
+		A1A1A1A1A1A1A1A1A1A1A1A7 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A1A1A1A1A1A1A1A1A1A1A1A8 /* Preview Assets.xcassets */; };
+		A1A1A1A1A1A1A1A1A1A1A1AB /* RecordingHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A1A1A1A1A1A1A1A1A1A1AC /* RecordingHistory.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		00572E9D2E2D415B00CBAA77 /* CustomReverbSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomReverbSettings.swift; sourceTree = "<group>"; };
+		00AE11E42DD383230013B491 /* CustomReverbView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomReverbView.swift; sourceTree = "<group>"; };
+		00C17FB02D8B280200930ED5 /* ReverbPreset.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReverbPreset.swift; sourceTree = "<group>"; };
+		00C17FB22D8B280200930ED5 /* AudioEngineService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioEngineService.swift; sourceTree = "<group>"; };
+		00C17FB32D8B280200930ED5 /* RecordingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingService.swift; sourceTree = "<group>"; };
+		00C17FB62D8B280200930ED5 /* AudioManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioManager.swift; sourceTree = "<group>"; };
+		00E061412E2C5EB800CE6783 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		A1A1A1A1A1A1A1A1A1A1A1A2 /* ReverbApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReverbApp.swift; sourceTree = "<group>"; };
+		A1A1A1A1A1A1A1A1A1A1A1A6 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		A1A1A1A1A1A1A1A1A1A1A1A8 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
+		A1A1A1A1A1A1A1A1A1A1A1AC /* RecordingHistory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingHistory.swift; sourceTree = "<group>"; };
+		A1A1A1A1A1A1A1A1A1A1A1AD /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		A1A1A1A1A1A1A1A1A1A1A1B1 /* Reverb.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Reverb.app; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		A1A1A1A1A1A1A1A1A1A1A1B2 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		00C17FB12D8B280200930ED5 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				00572E9D2E2D415B00CBAA77 /* CustomReverbSettings.swift */,
+				00C17FB02D8B280200930ED5 /* ReverbPreset.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		00C17FB42D8B280200930ED5 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				00C17FB22D8B280200930ED5 /* AudioEngineService.swift */,
+				00C17FB32D8B280200930ED5 /* RecordingService.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		00C17FB52D8B280200930ED5 /* Utils */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			path = Utils;
+			sourceTree = "<group>";
+		};
+		00C17FB72D8B280200930ED5 /* Audio */ = {
+			isa = PBXGroup;
+			children = (
+				00C17FB12D8B280200930ED5 /* Models */,
+				00C17FB42D8B280200930ED5 /* Services */,
+				00C17FB52D8B280200930ED5 /* Utils */,
+				00C17FB62D8B280200930ED5 /* AudioManager.swift */,
+			);
+			path = Audio;
+			sourceTree = "<group>";
+		};
+		A1A1A1A1A1A1A1A1A1A1A1B3 = {
+			isa = PBXGroup;
+			children = (
+				A1A1A1A1A1A1A1A1A1A1A1B4 /* Reverb */,
+				A1A1A1A1A1A1A1A1A1A1A1B5 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		A1A1A1A1A1A1A1A1A1A1A1B4 /* Reverb */ = {
+			isa = PBXGroup;
+			children = (
+				00AE11E42DD383230013B491 /* CustomReverbView.swift */,
+				00C17FB72D8B280200930ED5 /* Audio */,
+				A1A1A1A1A1A1A1A1A1A1A1A2 /* ReverbApp.swift */,
+				00E061412E2C5EB800CE6783 /* ContentView.swift */,
+				A1A1A1A1A1A1A1A1A1A1A1AC /* RecordingHistory.swift */,
+				A1A1A1A1A1A1A1A1A1A1A1AD /* Info.plist */,
+				A1A1A1A1A1A1A1A1A1A1A1A6 /* Assets.xcassets */,
+				A1A1A1A1A1A1A1A1A1A1A1B6 /* Preview Content */,
+			);
+			path = Reverb;
+			sourceTree = "<group>";
+		};
+		A1A1A1A1A1A1A1A1A1A1A1B5 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				A1A1A1A1A1A1A1A1A1A1A1B1 /* Reverb.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		A1A1A1A1A1A1A1A1A1A1A1B6 /* Preview Content */ = {
+			isa = PBXGroup;
+			children = (
+				A1A1A1A1A1A1A1A1A1A1A1A8 /* Preview Assets.xcassets */,
+			);
+			path = "Preview Content";
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		A1A1A1A1A1A1A1A1A1A1A1B7 /* Reverb */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A1A1A1A1A1A1A1A1A1A1A1B8 /* Build configuration list for PBXNativeTarget "Reverb" */;
+			buildPhases = (
+				A1A1A1A1A1A1A1A1A1A1A1B9 /* Sources */,
+				A1A1A1A1A1A1A1A1A1A1A1B2 /* Frameworks */,
+				A1A1A1A1A1A1A1A1A1A1A1BA /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Reverb;
+			productName = Reverb;
+			productReference = A1A1A1A1A1A1A1A1A1A1A1B1 /* Reverb.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		A1A1A1A1A1A1A1A1A1A1A1BB /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1620;
+				LastUpgradeCheck = 1620;
+				TargetAttributes = {
+					A1A1A1A1A1A1A1A1A1A1A1B7 = {
+						CreatedOnToolsVersion = 15.0;
+					};
+				};
+			};
+			buildConfigurationList = A1A1A1A1A1A1A1A1A1A1A1BC /* Build configuration list for PBXProject "Reverb" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = A1A1A1A1A1A1A1A1A1A1A1B3;
+			productRefGroup = A1A1A1A1A1A1A1A1A1A1A1B5 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				A1A1A1A1A1A1A1A1A1A1A1B7 /* Reverb */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		A1A1A1A1A1A1A1A1A1A1A1BA /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A1A1A1A1A1A1A1A1A1A1A1A7 /* Preview Assets.xcassets in Resources */,
+				A1A1A1A1A1A1A1A1A1A1A1A5 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		A1A1A1A1A1A1A1A1A1A1A1B9 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A1A1A1A1A1A1A1A1A1A1A1AB /* RecordingHistory.swift in Sources */,
+				A1A1A1A1A1A1A1A1A1A1A1A1 /* ReverbApp.swift in Sources */,
+				00E061422E2C5EBC00CE6783 /* ContentView.swift in Sources */,
+				00C17FB82D8B280200930ED5 /* AudioEngineService.swift in Sources */,
+				00C17FB92D8B280200930ED5 /* RecordingService.swift in Sources */,
+				00AE11E52DD3832C0013B491 /* CustomReverbView.swift in Sources */,
+				00572E9E2E2D416100CBAA77 /* CustomReverbSettings.swift in Sources */,
+				00C17FBA2D8B280200930ED5 /* ReverbPreset.swift in Sources */,
+				00C17FBB2D8B280200930ED5 /* AudioManager.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		A1A1A1A1A1A1A1A1A1A1A1BD /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		A1A1A1A1A1A1A1A1A1A1A1BE /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+			};
+			name = Release;
+		};
+		A1A1A1A1A1A1A1A1A1A1A1BF /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_ASSET_PATHS = "\"Reverb/Preview Content\"";
+				DEVELOPMENT_TEAM = F8PCL5U8NZ;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Reverb/Info.plist;
+				INFOPLIST_KEY_NSAppleMusicUsageDescription = "Cette application a besoin d'accéder à la bibliothèque audio pour enregistrer des sons.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Cette application a besoin d'accéder à la caméra pour enregistrer des vidéos.";
+				INFOPLIST_KEY_NSDocumentsFolderUsageDescription = "Cette application sauvegarde vos enregistrements dans le dossier Documents.";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Cette application a besoin d'accéder au microphone pour traiter votre voix avec des effets de réverbération en temps réel.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Cette application a besoin d'accéder à la bibliothèque photo pour enregistrer des images.";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.quran.Reverb;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		A1A1A1A1A1A1A1A1A1A1A1C0 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_ASSET_PATHS = "\"Reverb/Preview Content\"";
+				DEVELOPMENT_TEAM = F8PCL5U8NZ;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Reverb/Info.plist;
+				INFOPLIST_KEY_NSAppleMusicUsageDescription = "Cette application a besoin d'accéder à la bibliothèque audio pour enregistrer des sons.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Cette application a besoin d'accéder à la caméra pour enregistrer des vidéos.";
+				INFOPLIST_KEY_NSDocumentsFolderUsageDescription = "Cette application sauvegarde vos enregistrements dans le dossier Documents.";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Cette application a besoin d'accéder au microphone pour traiter votre voix avec des effets de réverbération en temps réel.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Cette application a besoin d'accéder à la bibliothèque photo pour enregistrer des images.";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.quran.Reverb;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		A1A1A1A1A1A1A1A1A1A1A1B8 /* Build configuration list for PBXNativeTarget "Reverb" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A1A1A1A1A1A1A1A1A1A1A1BF /* Debug */,
+				A1A1A1A1A1A1A1A1A1A1A1C0 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A1A1A1A1A1A1A1A1A1A1A1BC /* Build configuration list for PBXProject "Reverb" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A1A1A1A1A1A1A1A1A1A1A1BD /* Debug */,
+				A1A1A1A1A1A1A1A1A1A1A1BE /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = A1A1A1A1A1A1A1A1A1A1A1BB /* Project object */;
+}

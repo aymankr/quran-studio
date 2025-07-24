@@ -1,0 +1,2909 @@
+import Foundation
+import AVFoundation
+import UIKit
+
+class RecordingService: NSObject {
+    private var audioRecorder: AVAudioRecorder?
+    private var audioPlayer: AVAudioPlayer?
+    private var recordingSession: AVAudioSession?
+    private var currentRecordingURL: URL?
+    private var isCurrentlyRecording = false
+    private var isCurrentlyPlaying = false
+    
+    // Emplacement d'enregistrement configurable
+    private var recordingDirectory: URL
+    
+    // Recording settings optimisés
+    private let recordingSettings: [String: Any] = [
+        AVFormatIDKey: Int(kAudioFormatMPEG4AAC),
+        AVSampleRateKey: 44100.0,
+        AVNumberOfChannelsKey: 2,
+        AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue
+    ]
+    
+    // Dans RecordingService.swift, modifiez l'init pour utiliser Recordings par défaut :
+
+    override init() {
+        // CORRECTION: Utiliser Recordings par défaut
+        let documentsDir = RecordingService.getDocumentsDirectory()
+        let recordingsDir = documentsDir.appendingPathComponent("Recordings")
+        
+        // Créer le dossier Recordings s'il n'existe pas
+        if !FileManager.default.fileExists(atPath: recordingsDir.path) {
+            do {
+                try FileManager.default.createDirectory(at: recordingsDir, withIntermediateDirectories: true)
+                print("✅ Created Recordings directory")
+            } catch {
+                print("❌ Failed to create Recordings directory: \(error)")
+            }
+        }
+        
+        recordingDirectory = recordingsDir
+        super.init()
+        setupRecordingSession()
+    }
+
+    
+    // MARK: - Setup
+    
+    private func setupRecordingSession() {
+        #if os(iOS)
+        recordingSession = AVAudioSession.sharedInstance()
+        
+        do {
+            try recordingSession?.setCategory(.playAndRecord, mode: .default)
+            try recordingSession?.setActive(true)
+            print("✅ Recording session configured for iOS")
+        } catch {
+            print("❌ Failed to setup recording session: \(error)")
+        }
+        #else
+        print("🍎 macOS recording session ready")
+        #endif
+    }
+    
+    // MARK: - Gestion des emplacements (CORRIGÉ)
+    
+    /// Définit le répertoire d'enregistrement
+    func setRecordingDirectory(_ directory: URL) {
+        recordingDirectory = directory
+        print("📁 Recording directory set to: \(directory.path)")
+    }
+    
+    /// Obtient le répertoire d'enregistrement actuel
+    func getCurrentRecordingDirectory() -> URL {
+        return recordingDirectory
+    }
+    
+    /// Crée un sous-dossier "Recordings" dans Documents si nécessaire - CORRIGÉ
+    func createRecordingsSubfolder() {
+        // CORRECTION: Appel de la méthode statique avec le nom de classe
+        let recordingsFolder = RecordingService.getDocumentsDirectory().appendingPathComponent("Recordings")
+        
+        if !FileManager.default.fileExists(atPath: recordingsFolder.path) {
+            do {
+                try FileManager.default.createDirectory(at: recordingsFolder,
+                                                      withIntermediateDirectories: true)
+                setRecordingDirectory(recordingsFolder)
+                print("✅ Created Recordings folder at: \(recordingsFolder.path)")
+            } catch {
+                print("❌ Failed to create Recordings folder: \(error)")
+            }
+        } else {
+            setRecordingDirectory(recordingsFolder)
+            print("✅ Using existing Recordings folder")
+        }
+    }
+    
+    /// Obtient les emplacements disponibles - CORRIGÉ
+    static func getAvailableDirectories() -> [(name: String, url: URL)] {
+        var directories: [(name: String, url: URL)] = []
+        
+        // Documents (toujours disponible)
+        let documentsDir = getDocumentsDirectory()
+        directories.append(("Documents", documentsDir))
+        
+        // Recordings subfolder
+        let recordingsDir = documentsDir.appendingPathComponent("Recordings")
+        directories.append(("Recordings", recordingsDir))
+        
+        return directories
+    }
+    
+    // MARK: - Recording Methods
+    
+    func startRecording(completion: @escaping (Bool) -> Void) {
+        guard !isCurrentlyRecording else {
+            print("⚠️ Recording already in progress")
+            completion(false)
+            return
+        }
+        
+        // S'assurer que le dossier existe
+        if !FileManager.default.fileExists(atPath: recordingDirectory.path) {
+            do {
+                try FileManager.default.createDirectory(at: recordingDirectory,
+                                                      withIntermediateDirectories: true)
+                print("✅ Created recording directory: \(recordingDirectory.path)")
+            } catch {
+                print("❌ Failed to create recording directory: \(error)")
+                completion(false)
+                return
+            }
+        }
+        
+        let filename = generateUniqueFilename()
+        currentRecordingURL = recordingDirectory.appendingPathComponent(filename)
+        
+        guard let recordingURL = currentRecordingURL else {
+            print("❌ Could not create recording URL")
+            completion(false)
+            return
+        }
+        
+        print("🎙️ Starting recording to: \(recordingURL.path)")
+        
+        do {
+            audioRecorder = try AVAudioRecorder(url: recordingURL, settings: recordingSettings)
+            audioRecorder?.delegate = self
+            audioRecorder?.isMeteringEnabled = true
+            audioRecorder?.prepareToRecord()
+            
+            let success = audioRecorder?.record() ?? false
+            
+            if success {
+                isCurrentlyRecording = true
+                print("✅ Recording started successfully")
+                completion(true)
+            } else {
+                print("❌ Failed to start recording")
+                cleanup()
+                completion(false)
+            }
+            
+        } catch {
+            print("❌ Recording setup error: \(error.localizedDescription)")
+            cleanup()
+            completion(false)
+        }
+    }
+    
+    func stopRecording(completion: @escaping (Bool, String?) -> Void) {
+        guard isCurrentlyRecording else {
+            print("⚠️ No active recording to stop")
+            completion(false, nil)
+            return
+        }
+        
+        guard let recorder = audioRecorder else {
+            print("❌ No audio recorder available")
+            completion(false, nil)
+            return
+        }
+        
+        recorder.stop()
+        
+        let filename = currentRecordingURL?.lastPathComponent
+        
+        if let url = currentRecordingURL, FileManager.default.fileExists(atPath: url.path) {
+            print("✅ Recording stopped successfully: \(filename ?? "unknown")")
+            
+            do {
+                let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
+                let fileSize = attributes[.size] as? Int64 ?? 0
+                print("📁 Recording file size: \(formatFileSize(fileSize))")
+                
+                completion(true, filename)
+            } catch {
+                print("⚠️ Could not get file attributes, but recording exists")
+                completion(true, filename)
+            }
+            
+        } else {
+            print("❌ Recording file not found after stopping")
+            completion(false, nil)
+        }
+        
+        isCurrentlyRecording = false
+        cleanup()
+    }
+    
+    // MARK: - Lecture des enregistrements
+    
+    func playRecording(at url: URL, completion: @escaping (Bool) -> Void) {
+        stopPlayback() // Arrêter toute lecture en cours
+        
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            print("❌ Recording file not found: \(url.path)")
+            completion(false)
+            return
+        }
+        
+        do {
+            audioPlayer = try AVAudioPlayer(contentsOf: url)
+            audioPlayer?.delegate = self
+            audioPlayer?.prepareToPlay()
+            
+            let success = audioPlayer?.play() ?? false
+            isCurrentlyPlaying = success
+            
+            print(success ? "▶️ Playback started: \(url.lastPathComponent)" : "❌ Playback failed to start")
+            completion(success)
+            
+        } catch {
+            print("❌ Playback error: \(error.localizedDescription)")
+            completion(false)
+        }
+    }
+    
+    func pausePlayback() {
+        audioPlayer?.pause()
+        isCurrentlyPlaying = false
+        print("⏸️ Playback paused")
+    }
+    
+    func resumePlayback() -> Bool {
+        guard let player = audioPlayer else { return false }
+        
+        let success = player.play()
+        isCurrentlyPlaying = success
+        print(success ? "▶️ Playback resumed" : "❌ Failed to resume playback")
+        return success
+    }
+    
+    func stopPlayback() {
+        audioPlayer?.stop()
+        audioPlayer = nil
+        isCurrentlyPlaying = false
+        print("⏹️ Playback stopped")
+    }
+    
+    // MARK: - File Management
+    
+    func deleteRecording(at url: URL, completion: @escaping (Bool) -> Void) {
+        // Arrêter la lecture si ce fichier est en cours de lecture
+        if let playerURL = audioPlayer?.url, playerURL == url {
+            stopPlayback()
+        }
+        
+        do {
+            try FileManager.default.removeItem(at: url)
+            print("✅ Recording deleted: \(url.lastPathComponent)")
+            completion(true)
+        } catch {
+            print("❌ Failed to delete recording: \(error)")
+            completion(false)
+        }
+    }
+    
+    func getAllRecordings() -> [URL] {
+        do {
+            let files = try FileManager.default.contentsOfDirectory(at: recordingDirectory,
+                                                                 includingPropertiesForKeys: [.creationDateKey])
+            return files.filter { $0.pathExtension.lowercased() == "m4a" }
+                       .sorted { url1, url2 in
+                           let date1 = (try? url1.resourceValues(forKeys: [.creationDateKey]))?.creationDate ?? Date.distantPast
+                           let date2 = (try? url2.resourceValues(forKeys: [.creationDateKey]))?.creationDate ?? Date.distantPast
+                           return date1 > date2 // Plus récent en premier
+                       }
+        } catch {
+            print("❌ Error reading recordings directory: \(error)")
+            return []
+        }
+    }
+    
+    func getRecordingInfo(for url: URL) -> (duration: TimeInterval, fileSize: Int64, creationDate: Date)? {
+        do {
+            let asset = AVURLAsset(url: url)
+            let duration = CMTimeGetSeconds(asset.duration)
+            
+            let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
+            let fileSize = attributes[.size] as? Int64 ?? 0
+            let creationDate = attributes[.creationDate] as? Date ?? Date()
+            
+            return (duration: duration, fileSize: fileSize, creationDate: creationDate)
+        } catch {
+            print("❌ Error getting recording info: \(error)")
+            return nil
+        }
+    }
+    
+    // MARK: - Helper Methods
+    
+    private func generateUniqueFilename() -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyyMMdd_HHmmss"
+        let timestamp = formatter.string(from: Date())
+        return "recording_\(timestamp).m4a"
+    }
+    
+    // CORRECTION: Méthode statique correctement définie
+    static func getDocumentsDirectory() -> URL {
+        let paths = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)
+        return paths[0]
+    }
+    
+    private func formatFileSize(_ bytes: Int64) -> String {
+        let formatter = ByteCountFormatter()
+        formatter.allowedUnits = [.useKB, .useMB]
+        formatter.countStyle = .file
+        return formatter.string(fromByteCount: bytes)
+    }
+    
+    private func cleanup() {
+        audioRecorder = nil
+        currentRecordingURL = nil
+    }
+    
+    // MARK: - Properties
+    
+    var isPlaying: Bool {
+        return isCurrentlyPlaying && (audioPlayer?.isPlaying ?? false)
+    }
+    
+    var isRecording: Bool {
+        return isCurrentlyRecording && (audioRecorder?.isRecording ?? false)
+    }
+    
+    var currentRecordingDuration: TimeInterval {
+        return audioRecorder?.currentTime ?? 0
+    }
+    
+    var currentPlaybackTime: TimeInterval {
+        return audioPlayer?.currentTime ?? 0
+    }
+    
+    var playbackDuration: TimeInterval {
+        return audioPlayer?.duration ?? 0
+    }
+    
+    var currentRecordingLevel: Float {
+        audioRecorder?.updateMeters()
+        return audioRecorder?.averagePower(forChannel: 0) ?? -160
+    }
+}
+
+// MARK: - AVAudioRecorderDelegate
+
+extension RecordingService: AVAudioRecorderDelegate {
+    
+    func audioRecorderDidFinishRecording(_ recorder: AVAudioRecorder, successfully flag: Bool) {
+        if flag {
+            print("✅ Audio recorder finished successfully")
+        } else {
+            print("❌ Audio recorder finished with error")
+        }
+        
+        isCurrentlyRecording = false
+    }
+    
+    func audioRecorderEncodeErrorDidOccur(_ recorder: AVAudioRecorder, error: Error?) {
+        print("❌ Audio recorder encode error: \(error?.localizedDescription ?? "unknown")")
+        isCurrentlyRecording = false
+        cleanup()
+    }
+}
+
+// MARK: - AVAudioPlayerDelegate
+
+extension RecordingService: AVAudioPlayerDelegate {
+    
+    func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
+        print(flag ? "✅ Playback finished successfully" : "⚠️ Playback finished with issues")
+        isCurrentlyPlaying = false
+    }
+    
+    func audioPlayerDecodeErrorDidOccur(_ player: AVAudioPlayer, error: Error?) {
+        print("❌ Audio player decode error: \(error?.localizedDescription ?? "unknown")")
+        isCurrentlyPlaying = false
+    }
+}import Foundation
+import AVFoundation
+import Combine
+
+class AudioManager: ObservableObject {
+    static let shared = AudioManager()
+    
+    // Audio services
+    private(set) var audioEngineService: AudioEngineService?
+    private var recordingService: RecordingService?
+    
+    // Published properties
+    @Published var selectedReverbPreset: ReverbPreset = .vocalBooth
+    @Published var currentAudioLevel: Float = 0.0
+    @Published var isRecording: Bool = false
+    @Published var lastRecordingFilename: String?
+    
+    // Custom reverb settings
+    @Published var customReverbSettings = CustomReverbSettings.default
+    
+    // Recording state
+    private var currentRecordingPreset: String = ""
+    private var recordingStartTime: Date?
+    
+    // Monitoring state
+    private var isMonitoringActive = false
+    
+    // Preset description
+    var currentPresetDescription: String {
+        switch selectedReverbPreset {
+        case .clean:
+            return "Signal audio pur sans traitement"
+        case .vocalBooth:
+            return "Ambiance feutrée pour la voix parlée"
+        case .studio:
+            return "Son équilibré pour l'enregistrement"
+        case .cathedral:
+            return "Réverbération spacieuse et noble"
+        case .custom:
+            return "Paramètres personnalisables"
+        }
+    }
+    
+    private init() {
+        setupServices()
+    }
+    
+    private func setupServices() {
+        audioEngineService = AudioEngineService()
+        audioEngineService?.onAudioLevelChanged = { [weak self] level in
+            DispatchQueue.main.async {
+                self?.currentAudioLevel = level
+            }
+        }
+        
+        recordingService = RecordingService()
+        
+        print("✅ Audio services initialized")
+    }
+    
+    // MARK: - Public Methods
+    
+    func prepareAudio() {
+        if audioEngineService == nil {
+            setupServices()
+        }
+        print("🔧 Audio services prepared")
+    }
+    
+    func startMonitoring() {
+        guard !isMonitoringActive else {
+            print("⚠️ Monitoring already active")
+            return
+        }
+        
+        audioEngineService?.setMonitoring(enabled: true)
+        audioEngineService?.updateReverbPreset(preset: selectedReverbPreset)
+        isMonitoringActive = true
+        
+        print("✅ Monitoring started with preset: \(selectedReverbPreset.rawValue)")
+    }
+    
+    func stopMonitoring() {
+        guard isMonitoringActive else {
+            print("⚠️ Monitoring not active")
+            return
+        }
+        
+        audioEngineService?.setMonitoring(enabled: false)
+        isMonitoringActive = false
+        
+        if isRecording {
+            // Arrêter l'enregistrement si en cours
+            stopRecording { _, _, _ in }
+        }
+        
+        print("🔇 Monitoring stopped")
+    }
+    
+    func updateReverbPreset(_ preset: ReverbPreset) {
+        selectedReverbPreset = preset
+        
+        if preset == .custom {
+            ReverbPreset.updateCustomSettings(customReverbSettings)
+        }
+        
+        audioEngineService?.updateReverbPreset(preset: preset)
+        
+        print("🎛️ Reverb preset updated to: \(preset.rawValue)")
+    }
+    
+    // MARK: - NOUVEAU: Input Volume Control
+    
+    func setInputVolume(_ volume: Float) {
+        audioEngineService?.setInputVolume(volume)
+    }
+    
+    func getInputVolume() -> Float {
+        return audioEngineService?.getInputVolume() ?? 0.7
+    }
+    
+    // MARK: - Recording Methods CORRIGÉS
+    
+    /// Démarre l'enregistrement avec callback
+    func startRecording(completion: @escaping (Bool) -> Void) {
+        guard let recordingService = recordingService else {
+            print("❌ Recording service not available")
+            completion(false)
+            return
+        }
+        
+        guard !isRecording else {
+            print("⚠️ Recording already in progress")
+            completion(false)
+            return
+        }
+        
+        guard isMonitoringActive else {
+            print("⚠️ Cannot record without active monitoring")
+            completion(false)
+            return
+        }
+        
+        currentRecordingPreset = selectedReverbPreset.rawValue
+        recordingStartTime = Date()
+        
+        recordingService.startRecording { [weak self] success in
+            DispatchQueue.main.async {
+                if success {
+                    self?.isRecording = true
+                    print("✅ Recording started with preset: \(self?.currentRecordingPreset ?? "unknown")")
+                } else {
+                    print("❌ Failed to start recording")
+                    self?.recordingStartTime = nil
+                }
+                completion(success)
+            }
+        }
+    }
+    
+    /// Arrête l'enregistrement avec callback incluant durée
+    func stopRecording(completion: @escaping (Bool, String?, TimeInterval) -> Void) {
+        guard let recordingService = recordingService else {
+            print("❌ Recording service not available")
+            completion(false, nil, 0)
+            return
+        }
+        
+        guard isRecording else {
+            print("⚠️ No active recording to stop")
+            completion(false, nil, 0)
+            return
+        }
+        
+        // Calculer la durée
+        let duration = recordingStartTime?.timeIntervalSinceNow.magnitude ?? 0
+        
+        recordingService.stopRecording { [weak self] success, filename in
+            DispatchQueue.main.async {
+                self?.isRecording = false
+                self?.recordingStartTime = nil
+                
+                if success {
+                    self?.lastRecordingFilename = filename
+                    print("✅ Recording stopped successfully: \(filename ?? "unknown"), duration: \(duration)s")
+                } else {
+                    print("❌ Recording stop failed")
+                    self?.lastRecordingFilename = self?.generateFallbackFilename()
+                }
+                
+                completion(success, filename, duration)
+            }
+        }
+    }
+    
+    /// OBSOLÈTE: Méthode de compatibilité
+    func toggleRecording() {
+        if isRecording {
+            stopRecording { success, filename, duration in
+                print("Recording toggled off: success=\(success), duration=\(duration)s")
+            }
+        } else {
+            startRecording { success in
+                print("Recording toggled on: success=\(success)")
+            }
+        }
+    }
+    
+    private func generateFallbackFilename() -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyyMMdd_HHmmss"
+        return "recording_\(currentRecordingPreset)_\(formatter.string(from: Date())).m4a"
+    }
+    
+    // MARK: - Custom Reverb Management
+    
+    func updateCustomReverbSettings(_ settings: CustomReverbSettings) {
+        customReverbSettings = settings
+        ReverbPreset.updateCustomSettings(settings)
+        
+        if selectedReverbPreset == .custom {
+            audioEngineService?.updateReverbPreset(preset: .custom)
+        }
+        
+        print("🎛️ Custom reverb settings updated")
+    }
+    
+    func resetCustomReverbSettings() {
+        customReverbSettings = CustomReverbSettings.default
+        ReverbPreset.updateCustomSettings(customReverbSettings)
+        
+        if selectedReverbPreset == .custom {
+            audioEngineService?.updateReverbPreset(preset: .custom)
+        }
+        
+        print("🔄 Custom reverb settings reset to default")
+    }
+    
+    // MARK: - Audio Control Methods
+    
+    func setOutputVolume(_ volume: Float, isMuted: Bool) {
+        audioEngineService?.setOutputVolume(volume, isMuted: isMuted)
+    }
+    
+    func diagnostic() {
+        print("🔍 === AUDIO MANAGER DIAGNOSTIC ===")
+        print("- Selected preset: \(selectedReverbPreset.rawValue)")
+        print("- Monitoring active: \(isMonitoringActive)")
+        print("- Recording active: \(isRecording)")
+        print("- Current audio level: \(currentAudioLevel)")
+        print("- Audio engine service: \(audioEngineService != nil ? "✅" : "❌")")
+        print("- Recording service: \(recordingService != nil ? "✅" : "❌")")
+        
+        audioEngineService?.diagnosticMonitoring()
+        print("=== END AUDIO MANAGER DIAGNOSTIC ===")
+    }
+    
+    // MARK: - Recording Info Methods
+    
+    func getCurrentRecordingInfo() -> (preset: String, isActive: Bool, duration: TimeInterval) {
+        let duration = recordingStartTime?.timeIntervalSinceNow.magnitude ?? 0
+        return (currentRecordingPreset, isRecording, duration)
+    }
+    
+    func getRecordingDuration() -> TimeInterval {
+        guard let startTime = recordingStartTime, isRecording else { return 0 }
+        return Date().timeIntervalSince(startTime)
+    }
+    
+    // MARK: - State Properties
+    
+    var isMonitoring: Bool {
+        return isMonitoringActive
+    }
+    
+    var canStartRecording: Bool {
+        return isMonitoringActive && !isRecording
+    }
+    
+    var canStartMonitoring: Bool {
+        return audioEngineService != nil && !isMonitoringActive
+    }
+    
+    // MARK: - Custom Settings Integration
+    
+    func updateCustomSetting(
+        size: Float? = nil,
+        decayTime: Float? = nil,
+        preDelay: Float? = nil,
+        crossFeed: Float? = nil,
+        wetDryMix: Float? = nil,
+        density: Float? = nil,
+        highFrequencyDamping: Float? = nil,
+        applyImmediately: Bool = true
+    ) {
+        var settings = customReverbSettings
+        
+        if let size = size { settings.size = size }
+        if let decayTime = decayTime { settings.decayTime = decayTime }
+        if let preDelay = preDelay { settings.preDelay = preDelay }
+        if let crossFeed = crossFeed { settings.crossFeed = crossFeed }
+        if let wetDryMix = wetDryMix { settings.wetDryMix = wetDryMix }
+        if let density = density { settings.density = density }
+        if let highFrequencyDamping = highFrequencyDamping { settings.highFrequencyDamping = highFrequencyDamping }
+        
+        customReverbSettings = settings
+        
+        if applyImmediately {
+            updateCustomReverbSettings(settings)
+        }
+    }
+}
+import SwiftUI
+
+struct CustomReverbView: View {
+    @ObservedObject var audioManager: AudioManager
+    @Environment(\.presentationMode) var presentationMode
+    @State private var showingResetAlert = false
+    
+    // États locaux pour les paramètres personnalisés
+    @State private var wetDryMix: Float = 35
+    @State private var size: Float = 0.82
+    @State private var decayTime: Float = 2.0
+    @State private var preDelay: Float = 75.0
+    @State private var crossFeed: Float = 0.5
+    @State private var highFrequencyDamping: Float = 50.0
+    @State private var density: Float = 70.0
+    @State private var hasCrossFeed: Bool = false
+    
+    // Couleurs du thème
+    private let backgroundColor = Color(red: 0.08, green: 0.08, blue: 0.13)
+    private let sliderColor = Color.blue
+    
+    var body: some View {
+        ZStack {
+            backgroundColor.edgesIgnoringSafeArea(.all)
+            
+            ScrollView(.vertical, showsIndicators: true) {
+                VStack(spacing: 15) {
+                    Text("Réverbération Personnalisée")
+                        .font(.system(size: 22, weight: .bold, design: .rounded))
+                        .foregroundColor(.white)
+                        .padding(.top, 15)
+                    
+                    // Description
+                    Text("Ajustez les paramètres pour créer votre propre atmosphère acoustique.")
+                        .font(.subheadline)
+                        .foregroundColor(.white.opacity(0.8))
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
+                        .padding(.bottom, 5)
+                    
+                    // Zone de réglages
+                    VStack(spacing: 15) {
+                        // Mélange Wet/Dry
+                        DirectSliderView(
+                            title: "Mélange (Wet/Dry)",
+                            value: $wetDryMix,
+                            range: 0...100,
+                            step: 1,
+                            icon: "slider.horizontal.3",
+                            displayText: { String(Int($0)) + "%" },
+                            onChange: { newValue in
+                                wetDryMix = newValue
+                                updateCustomReverb()
+                            }
+                        )
+                        
+                        // Taille de l'espace
+                        DirectSliderView(
+                            title: "Taille de l'espace",
+                            value: $size,
+                            range: 0...1,
+                            step: 0.01,
+                            icon: "rectangle.expand.vertical",
+                            displayText: { String(Int($0 * 100)) + "%" },
+                            onChange: { newValue in
+                                size = newValue
+                                updateCustomReverb()
+                            }
+                        )
+                        
+                        // Durée de réverbération
+                        DirectSliderView(
+                            title: "Durée de réverbération",
+                            value: $decayTime,
+                            range: 0.1...8,
+                            step: 0.1,
+                            icon: "clock",
+                            displayText: { String(format: "%.1fs", $0) },
+                            onChange: { newValue in
+                                decayTime = newValue
+                                updateCustomReverb()
+                            },
+                            highPriority: true
+                        )
+                        
+                        // Pré-délai
+                        DirectSliderView(
+                            title: "Pré-délai",
+                            value: $preDelay,
+                            range: 0...200,
+                            step: 1,
+                            icon: "arrow.left.and.right",
+                            displayText: { String(Int($0)) + "ms" },
+                            onChange: { newValue in
+                                preDelay = newValue
+                                updateCustomReverb()
+                            }
+                        )
+                        
+                        // Cross-feed
+                        VStack(alignment: .leading) {
+                            Text("Diffusion stéréo (Cross-feed)")
+                                .font(.headline)
+                                .foregroundColor(.white)
+                            
+                            VStack(spacing: 12) {
+                                Toggle("Activer", isOn: $hasCrossFeed)
+                                    .toggleStyle(SwitchToggleStyle(tint: sliderColor))
+                                    .foregroundColor(.white)
+                                    .onChange(of: hasCrossFeed) { _ in
+                                        updateCustomReverb()
+                                    }
+                                
+                                if hasCrossFeed {
+                                    HStack {
+                                        DirectSlider(
+                                            value: $crossFeed,
+                                            range: 0...1,
+                                            step: 0.01,
+                                            onChange: { newValue in
+                                                crossFeed = newValue
+                                                updateCustomReverb()
+                                            }
+                                        )
+                                        .accentColor(sliderColor)
+                                        .disabled(!hasCrossFeed)
+                                        
+                                        Text(String(Int(crossFeed * 100)) + "%")
+                                            .foregroundColor(.white)
+                                            .frame(width: 50, alignment: .trailing)
+                                    }
+                                }
+                            }
+                        }
+                        .padding()
+                        .background(Color.black.opacity(0.2))
+                        .cornerRadius(12)
+                        
+                        // Atténuation des aigus
+                        DirectSliderView(
+                            title: "Atténuation des aigus",
+                            value: $highFrequencyDamping,
+                            range: 0...100,
+                            step: 1,
+                            icon: "waveform.path.ecg",
+                            displayText: { String(Int($0)) + "%" },
+                            onChange: { newValue in
+                                highFrequencyDamping = newValue
+                                updateCustomReverb()
+                            }
+                        )
+                        
+                        // Densité
+                        DirectSliderView(
+                            title: "Densité",
+                            value: $density,
+                            range: 0...100,
+                            step: 1,
+                            icon: "wave.3.right",
+                            displayText: { String(Int($0)) + "%" },
+                            onChange: { newValue in
+                                density = newValue
+                                updateCustomReverb()
+                            }
+                        )
+                    }
+                    .padding(.horizontal)
+                    
+                    // Boutons
+                    HStack(spacing: 15) {
+                        Button(action: {
+                            showingResetAlert = true
+                        }) {
+                            Text("Réinitialiser")
+                                .font(.headline)
+                                .foregroundColor(.white)
+                                .padding()
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 50)
+                                .background(Color.gray.opacity(0.6))
+                                .cornerRadius(12)
+                        }
+                        
+                        Button(action: {
+                            presentationMode.wrappedValue.dismiss()
+                        }) {
+                            Text("Fermer")
+                                .font(.headline)
+                                .foregroundColor(.white)
+                                .padding()
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 50)
+                                .background(sliderColor)
+                                .cornerRadius(12)
+                        }
+                    }
+                    .padding(.vertical, 20)
+                    .padding(.horizontal)
+                }
+            }
+        }
+        .alert(isPresented: $showingResetAlert) {
+            Alert(
+                title: Text("Réinitialiser les paramètres"),
+                message: Text("Êtes-vous sûr de vouloir revenir aux paramètres par défaut?"),
+                primaryButton: .destructive(Text("Réinitialiser")) {
+                    resetToDefaults()
+                },
+                secondaryButton: .cancel(Text("Annuler"))
+            )
+        }
+        .onAppear {
+            loadCurrentSettings()
+            
+            // S'assurer que nous sommes en mode personnalisé
+            if audioManager.selectedReverbPreset != .custom {
+                audioManager.updateReverbPreset(.custom)
+            }
+        }
+    }
+    
+    // MARK: - Helper Methods
+    
+    /// Charge les paramètres actuels
+    private func loadCurrentSettings() {
+        let defaultSettings = CustomReverbSettings.default
+        wetDryMix = defaultSettings.wetDryMix
+        size = defaultSettings.size
+        decayTime = defaultSettings.decayTime
+        preDelay = defaultSettings.preDelay
+        crossFeed = defaultSettings.crossFeed
+        highFrequencyDamping = defaultSettings.highFrequencyDamping
+        density = defaultSettings.density
+        hasCrossFeed = false
+    }
+    
+    /// Met à jour les paramètres de réverbération personnalisés
+    private func updateCustomReverb() {
+        // Créer une structure de paramètres personnalisés
+        let customSettings = CustomReverbSettings(
+            size: size,
+            decayTime: decayTime,
+            preDelay: preDelay,
+            crossFeed: crossFeed,
+            wetDryMix: wetDryMix,
+            highFrequencyDamping: highFrequencyDamping,
+            density: density
+        )
+        
+        // Mettre à jour les paramètres statiques
+        ReverbPreset.updateCustomSettings(customSettings)
+        
+        // Appliquer immédiatement si en mode custom
+        if audioManager.selectedReverbPreset == .custom {
+            audioManager.updateReverbPreset(.custom)
+            
+            // Mettre à jour le cross-feed si disponible
+            audioEngineService?.updateCrossFeed(enabled: hasCrossFeed, value: crossFeed)
+        }
+    }
+    
+    /// Réinitialise aux valeurs par défaut
+    private func resetToDefaults() {
+        let defaultSettings = CustomReverbSettings.default
+        
+        withAnimation(.easeInOut(duration: 0.3)) {
+            wetDryMix = defaultSettings.wetDryMix
+            size = defaultSettings.size
+            decayTime = defaultSettings.decayTime
+            preDelay = defaultSettings.preDelay
+            crossFeed = defaultSettings.crossFeed
+            highFrequencyDamping = defaultSettings.highFrequencyDamping
+            density = defaultSettings.density
+            hasCrossFeed = false
+        }
+        
+        // Appliquer immédiatement
+        updateCustomReverb()
+    }
+    
+    /// Référence à l'AudioEngineService
+    private var audioEngineService: AudioEngineService? {
+        return audioManager.audioEngineService
+    }
+}
+
+// MARK: - DirectSlider avec Binding
+
+/// Slider optimisé avec support de Binding
+struct DirectSlider: View {
+    @Binding var value: Float
+    let range: ClosedRange<Float>
+    let step: Float
+    let onChange: (Float) -> Void
+    let highPriority: Bool
+    
+    @State private var isEditingNow = false
+    @State private var lastUpdateTime = Date()
+    private let throttleInterval: TimeInterval = 0.05
+    private let highPriorityInterval: TimeInterval = 0.02
+    
+    init(value: Binding<Float>, range: ClosedRange<Float>, step: Float, onChange: @escaping (Float) -> Void, highPriority: Bool = false) {
+        self._value = value
+        self.range = range
+        self.step = step
+        self.onChange = onChange
+        self.highPriority = highPriority
+    }
+    
+    var body: some View {
+        Slider(
+            value: $value,
+            in: range,
+            step: step,
+            onEditingChanged: { editing in
+                isEditingNow = editing
+                
+                if !editing {
+                    // Appliquer immédiatement à la fin de l'édition
+                    onChange(value)
+                }
+            }
+        )
+        .onChange(of: value) { newValue in
+            // Pendant l'édition, appliquer avec throttling
+            if isEditingNow {
+                let now = Date()
+                let interval = highPriority ? highPriorityInterval : throttleInterval
+                
+                if now.timeIntervalSince(lastUpdateTime) >= interval {
+                    onChange(newValue)
+                    lastUpdateTime = now
+                }
+            } else {
+                // Si pas en édition, appliquer immédiatement
+                onChange(newValue)
+            }
+        }
+    }
+}
+
+// MARK: - DirectSliderView avec Binding
+
+/// Vue complète pour un slider avec titre, icône et affichage de valeur
+struct DirectSliderView: View {
+    let title: String
+    @Binding var value: Float
+    let range: ClosedRange<Float>
+    let step: Float
+    let icon: String
+    let displayText: (Float) -> String
+    let onChange: (Float) -> Void
+    let highPriority: Bool
+    
+    init(title: String, value: Binding<Float>, range: ClosedRange<Float>, step: Float, icon: String,
+         displayText: @escaping (Float) -> String, onChange: @escaping (Float) -> Void, highPriority: Bool = false) {
+        self.title = title
+        self._value = value
+        self.range = range
+        self.step = step
+        self.icon = icon
+        self.displayText = displayText
+        self.onChange = onChange
+        self.highPriority = highPriority
+    }
+    
+    private let sliderColor = Color.blue
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Image(systemName: icon)
+                    .foregroundColor(.white.opacity(0.7))
+                Text(title)
+                    .font(.headline)
+                    .foregroundColor(.white)
+            }
+            
+            HStack {
+                DirectSlider(
+                    value: $value,
+                    range: range,
+                    step: step,
+                    onChange: onChange,
+                    highPriority: highPriority
+                )
+                .accentColor(sliderColor)
+                
+                Text(displayText(value))
+                    .foregroundColor(.white)
+                    .frame(width: 55, alignment: .trailing)
+                    .font(.system(.body, design: .monospaced))
+            }
+        }
+        .padding()
+        .background(Color.black.opacity(0.2))
+        .cornerRadius(12)
+    }
+}
+
+// MARK: - Preview
+
+struct CustomReverbView_Previews: PreviewProvider {
+    static var previews: some View {
+        CustomReverbView(audioManager: AudioManager.shared)
+            .preferredColorScheme(.dark)
+    }
+}
+
+import Foundation
+import AVFoundation
+
+/// Structure for custom reverb settings
+struct CustomReverbSettings {
+    var size: Float = 0.82             // 0.0-1.0 (relates to room dimensions)
+    var decayTime: Float = 2.0         // 0.1-8.0 seconds
+    var preDelay: Float = 75.0         // 0-200 ms
+    var crossFeed: Float = 0.5         // 0.0-1.0 (stereo spread)
+    var wetDryMix: Float = 35          // 0-100%
+    var highFrequencyDamping: Float = 50.0 // 0-100%
+    var density: Float = 70.0          // 0-100%
+    
+    static let `default` = CustomReverbSettings()
+}
+
+/// Model for reverb presets optimized for Quranic recitation
+enum ReverbPreset: String, CaseIterable, Identifiable {
+    // Préréglages optimisés pour la récitation coranique
+    case clean = "Clean"          // Voix pure, sans effet
+    case vocalBooth = "Vocal Booth" // Légère ambiance, clarté maximale
+    case studio = "Studio"        // Ambiance équilibrée, présence harmonieuse
+    case cathedral = "Cathedral"    // Réverbération noble et profonde
+    case custom = "Personnalisé"    // Paramètres personnalisés par l'utilisateur
+    
+    var id: String { rawValue }
+    
+    /// Returns the corresponding AVAudioUnitReverbPreset as base
+    var preset: AVAudioUnitReverbPreset {
+        switch self {
+        case .clean: return .smallRoom
+        case .vocalBooth: return .mediumRoom
+        case .studio: return .largeRoom
+        case .cathedral: return .mediumHall // Ajusté pour plus de stabilité
+        case .custom: return .mediumHall    // Base pour paramétrage personnalisé
+        }
+    }
+    
+    /// Returns the wet/dry mix value (0-100)
+    var wetDryMix: Float {
+        switch self {
+        case .clean: return 0       // Aucun effet
+        case .vocalBooth: return 18   // Subtil mais perceptible
+        case .studio: return 40     // Équilibré, présence notable
+        case .cathedral: return 65   // Important mais pas excessif pour éviter les saccades
+        case .custom: return CustomReverbSettings.default.wetDryMix
+        }
+    }
+    
+    /// Returns the decay time in seconds
+    var decayTime: Float {
+        switch self {
+        case .clean: return 0.1
+        case .vocalBooth: return 0.9  // Légèrement plus long pour la douceur
+        case .studio: return 1.7      // Durée moyenne pour l'intelligibilité
+        case .cathedral: return 2.8   // Réduit pour éviter les saccades, reste noble
+        case .custom: return CustomReverbSettings.default.decayTime
+        }
+    }
+    
+    /// Returns pre-delay in ms (0-100ms)
+    var preDelay: Float {
+        switch self {
+        case .clean: return 0
+        case .vocalBooth: return 8     // Clarté des consonnes
+        case .studio: return 15        // Séparation naturelle
+        case .cathedral: return 25     // Réduit pour éviter les saccades
+        case .custom: return CustomReverbSettings.default.preDelay
+        }
+    }
+    
+    /// Returns room size (0-100)
+    var roomSize: Float {
+        switch self {
+        case .clean: return 0
+        case .vocalBooth: return 35    // Pièce intime
+        case .studio: return 60        // Espace confortable
+        case .cathedral: return 85     // Grande mais pas maximale pour maintenir la stabilité
+        case .custom: return CustomReverbSettings.default.size * 100 // Convert 0-1 to 0-100
+        }
+    }
+    
+    /// Returns density value (0-100)
+    var density: Float {
+        switch self {
+        case .clean: return 0
+        case .vocalBooth: return 70    // Dense pour éviter le flottement
+        case .studio: return 85        // Naturel et riche
+        case .cathedral: return 60     // Réduit pour limiter la charge CPU
+        case .custom: return CustomReverbSettings.default.density
+        }
+    }
+    
+    /// Returns HF damping (0-100) - Contrôle l'absorption des hautes fréquences
+    var highFrequencyDamping: Float {
+        switch self {
+        case .clean: return 0
+        case .vocalBooth: return 30    // Conserve la clarté
+        case .studio: return 45        // Équilibré
+        case .cathedral: return 60     // Plus d'absorption pour limiter les résonances aiguës
+        case .custom: return CustomReverbSettings.default.highFrequencyDamping
+        }
+    }
+    
+    /// Returns the cross feed value (0-100)
+    var crossFeed: Float {
+        switch self {
+        case .clean: return 0
+        case .vocalBooth: return 30    // Stéréo légère
+        case .studio: return 50        // Équilibré
+        case .cathedral: return 70     // Large espace
+        case .custom: return CustomReverbSettings.default.crossFeed * 100 // Convert 0-1 to 0-100
+        }
+    }
+    
+    /// Description of how this preset affects recitation
+    var description: String {
+        switch self {
+        case .clean:
+            return "Signal pur, fidèle à la voix originale, sans aucun effet."
+        case .vocalBooth:
+            return "Légère ambiance spatiale qui préserve la clarté et l'intelligibilité de chaque mot."
+        case .studio:
+            return "Réverbération équilibrée qui enrichit la voix tout en conservant la précision de la récitation."
+        case .cathedral:
+            return "Profondeur et noblesse qui évoquent l'espace d'un lieu de culte, pour une récitation solennelle."
+        case .custom:
+            return "Paramètres personnalisés pour créer votre propre environnement acoustique."
+        }
+    }
+}
+
+// MARK: - Extensions pour la gestion des paramètres personnalisés
+
+extension ReverbPreset {
+    /// Retourne les paramètres personnalisés avec une source statique
+    static var customSettings: CustomReverbSettings = CustomReverbSettings.default
+    
+    /// Met à jour les paramètres personnalisés
+    static func updateCustomSettings(_ settings: CustomReverbSettings) {
+        customSettings = settings
+    }
+    
+    /// Version avec paramètres dynamiques
+    func values(with customSettings: CustomReverbSettings? = nil) -> (wetDryMix: Float, decayTime: Float, preDelay: Float, roomSize: Float, density: Float, highFrequencyDamping: Float, crossFeed: Float) {
+        let settings = customSettings ?? ReverbPreset.customSettings
+        
+        switch self {
+        case .clean:
+            return (0, 0.1, 0, 0, 0, 0, 0)
+        case .vocalBooth:
+            return (18, 0.9, 8, 35, 70, 30, 30)
+        case .studio:
+            return (40, 1.7, 15, 60, 85, 45, 50)
+        case .cathedral:
+            return (65, 2.8, 25, 85, 60, 60, 70)
+        case .custom:
+            return (settings.wetDryMix, settings.decayTime, settings.preDelay, settings.size * 100, settings.density, settings.highFrequencyDamping, settings.crossFeed * 100)
+        }
+    }
+}
+import Foundation
+import AVFoundation
+import AudioToolbox
+
+class AudioEngineService {
+    // Audio engine components
+    private var audioEngine: AVAudioEngine?
+    private var inputNode: AVAudioInputNode?
+    private var mainMixer: AVAudioMixerNode?
+    private var reverbNode: AVAudioUnitReverb?
+    
+    // Advanced components for stereo effects
+    private var stereoMixerL: AVAudioMixerNode?
+    private var stereoMixerR: AVAudioMixerNode?
+    private var delayNode: AVAudioUnitDelay?
+    private var crossFeedEnabled = false
+    
+    // Engine state
+    private var isEngineRunning = false
+    private var setupAttempts = 0
+    private let maxSetupAttempts = 3
+    
+    // Format de connexion unifié
+    private var connectionFormat: AVAudioFormat?
+    
+    // NOUVEAU: Volume microphone
+    private var inputVolume: Float = 0.7
+    
+    // Callbacks
+    var onAudioLevelChanged: ((Float) -> Void)?
+    
+    init() {
+        setupAudioSession()
+        setupAudioEngine()
+    }
+    
+    // MARK: - Configuration (inchangée)
+    
+    private func setupAudioSession() {
+        #if os(iOS)
+        do {
+            let session = AVAudioSession.sharedInstance()
+            try session.setCategory(
+                .playAndRecord,
+                mode: .default,
+                options: [.defaultToSpeaker, .allowBluetooth, .mixWithOthers]
+            )
+            try session.setActive(true)
+            
+            try session.setPreferredSampleRate(44100)
+            try session.setPreferredIOBufferDuration(0.005)
+            
+            print("✅ AVAudioSession configured successfully")
+        } catch {
+            print("❌ Audio session configuration error: \(error.localizedDescription)")
+        }
+        #else
+        print("🍎 macOS audio session ready")
+        requestMicrophonePermission()
+        #endif
+    }
+    
+    #if os(macOS)
+    private func requestMicrophonePermission() {
+        let micAccess = AVCaptureDevice.authorizationStatus(for: .audio)
+        print("🎤 Microphone authorization status: \(micAccess.rawValue)")
+        
+        if micAccess == .notDetermined {
+            AVCaptureDevice.requestAccess(for: .audio) { granted in
+                DispatchQueue.main.async {
+                    print("🎤 Microphone access granted: \(granted)")
+                    if granted {
+                        self.setupAudioEngine()
+                    }
+                }
+            }
+        }
+    }
+    #endif
+    
+    private func setupAudioEngine() {
+        guard setupAttempts < maxSetupAttempts else {
+            print("❌ Maximum setup attempts reached")
+            return
+        }
+         
+        setupAttempts += 1
+        print("🔧 Setting up audio engine (attempt \(setupAttempts))")
+        
+        cleanupEngine()
+        
+        let engine = AVAudioEngine()
+        audioEngine = engine
+        
+        let inputNode = engine.inputNode
+        self.inputNode = inputNode
+        let mainMixer = engine.mainMixerNode
+        mainMixer.outputVolume = 1.0
+        self.mainMixer = mainMixer
+        
+        let reverb = AVAudioUnitReverb()
+        reverb.loadFactoryPreset(.smallRoom)
+        reverb.wetDryMix = 25
+        reverbNode = reverb
+        engine.attach(reverb)
+        
+        let stereoMixerL = AVAudioMixerNode()
+        let stereoMixerR = AVAudioMixerNode()
+        let delayNode = AVAudioUnitDelay()
+        
+        engine.attach(stereoMixerL)
+        engine.attach(stereoMixerR)
+        engine.attach(delayNode)
+        
+        self.stereoMixerL = stereoMixerL
+        self.stereoMixerR = stereoMixerR
+        self.delayNode = delayNode
+        
+        delayNode.delayTime = 0.01
+        delayNode.feedback = 0
+        delayNode.wetDryMix = 100
+        
+        let inputHWFormat = inputNode.inputFormat(forBus: 0)
+        print("🎤 Input format: \(inputHWFormat.sampleRate) Hz, \(inputHWFormat.channelCount) channels")
+        
+        guard inputHWFormat.sampleRate > 0 && inputHWFormat.channelCount > 0 else {
+            print("❌ Invalid input format detected")
+            if setupAttempts < maxSetupAttempts {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    self.setupAudioSession()
+                    self.setupAudioEngine()
+                }
+            }
+            return
+        }
+        
+        let stereoFormat = AVAudioFormat(standardFormatWithSampleRate: inputHWFormat.sampleRate, channels: 2)!
+        self.connectionFormat = stereoFormat
+        print("🔗 Unified format: \(stereoFormat.sampleRate) Hz, \(stereoFormat.channelCount) channels")
+        
+        do {
+            try engine.connect(inputNode, to: reverb, format: stereoFormat)
+            try engine.connect(reverb, to: mainMixer, format: stereoFormat)
+            try engine.connect(mainMixer, to: engine.outputNode, format: nil)
+            
+            engine.prepare()
+            print("✅ Audio engine configured successfully")
+            setupAttempts = 0
+        } catch {
+            print("❌ Audio connection error: \(error.localizedDescription)")
+            print("Error code: \((error as NSError).code)")
+            
+            if setupAttempts < maxSetupAttempts {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    self.setupSimplifiedEngine()
+                }
+            }
+        }
+    }
+    
+    // MARK: - NOUVEAU: Input Volume Control
+    
+    /// Définit le volume d'entrée du microphone
+    func setInputVolume(_ volume: Float) {
+        inputVolume = max(0.0, min(1.0, volume))
+        inputNode?.volume = inputVolume
+        print("🎤 Input volume set to: \(Int(inputVolume * 100))%")
+    }
+    
+    /// Obtient le volume actuel du microphone
+    func getInputVolume() -> Float {
+        return inputVolume
+    }
+    
+    // MARK: - Reste des méthodes inchangées...
+    
+    private func installAudioTap(inputNode: AVAudioInputNode, bufferSize: UInt32) {
+        inputNode.removeTap(onBus: 0)
+        Thread.sleep(forTimeInterval: 0.01)
+        
+        guard let tapFormat = connectionFormat else {
+            print("❌ No connection format available for tap")
+            return
+        }
+        
+        print("🎤 Installing tap with UNIFIED format: \(tapFormat)")
+        
+        do {
+            inputNode.installTap(onBus: 0, bufferSize: bufferSize, format: tapFormat) { [weak self] buffer, time in
+                guard let self = self else { return }
+                
+                guard let channelData = buffer.floatChannelData else {
+                    return
+                }
+                
+                let frameLength = Int(buffer.frameLength)
+                guard frameLength > 0 else { return }
+                
+                let channelCount = Int(buffer.format.channelCount)
+                var totalLevel: Float = 0
+                
+                for channel in 0..<channelCount {
+                    let channelPtr = channelData[channel]
+                    var sum: Float = 0
+                    var maxValue: Float = 0
+                    
+                    let stride = max(1, frameLength / 64)
+                    var sampleCount = 0
+                    
+                    for i in Swift.stride(from: 0, to: frameLength, by: stride) {
+                        let sample = abs(channelPtr[i])
+                        sum += sample
+                        maxValue = max(maxValue, sample)
+                        sampleCount += 1
+                    }
+                    
+                    let avgLevel = sum / Float(max(sampleCount, 1))
+                    let channelLevel = max(avgLevel, maxValue * 0.7)
+                    totalLevel += channelLevel
+                }
+                
+                let finalLevel = totalLevel / Float(channelCount)
+                
+                if finalLevel > 0.001 && Int.random(in: 0...100) == 0 {
+                    print("🎵 Audio detected: level=\(finalLevel), channels=\(channelCount)")
+                }
+                
+                DispatchQueue.main.async {
+                    let displayLevel = max(0, min(1, finalLevel * 15))
+                    self.onAudioLevelChanged?(displayLevel)
+                }
+            }
+            print("✅ Audio tap installed successfully with unified format")
+        } catch {
+            print("❌ Failed to install audio tap: \(error)")
+        }
+    }
+    
+    private func setupSimplifiedEngine() {
+        print("⚠️ Using simplified configuration...")
+        
+        cleanupEngine()
+        
+        let engine = AVAudioEngine()
+        audioEngine = engine
+        
+        let inputNode = engine.inputNode
+        self.inputNode = inputNode
+        let mainMixer = engine.mainMixerNode
+        self.mainMixer = mainMixer
+        
+        let inputFormat = inputNode.inputFormat(forBus: 0)
+        guard inputFormat.sampleRate > 0 && inputFormat.channelCount > 0 else {
+            print("❌ Cannot proceed with invalid format in simplified setup")
+            return
+        }
+        
+        self.connectionFormat = inputFormat
+        
+        do {
+            try engine.connect(inputNode, to: mainMixer, format: inputFormat)
+            try engine.connect(mainMixer, to: engine.outputNode, format: nil)
+            
+            engine.prepare()
+            print("✅ Simplified configuration successful")
+            setupAttempts = 0
+        } catch {
+            print("❌ Simplified configuration failed: \(error)")
+        }
+    }
+    
+    // MARK: - Monitoring Control
+    
+    func setMonitoring(enabled: Bool) {
+        if enabled {
+            startMonitoring()
+        } else {
+            stopMonitoring()
+        }
+    }
+    
+    private func startMonitoring() {
+        guard let engine = audioEngine else {
+            print("❌ Audio engine not available")
+            return
+        }
+        
+        if engine.isRunning {
+            engine.stop()
+            print("🔄 Engine stopped for restart")
+            Thread.sleep(forTimeInterval: 0.1)
+        }
+        
+        let success = startEngine()
+        
+        if success {
+            mainMixer?.outputVolume = 1.0
+            
+            // NOUVEAU: Appliquer le volume d'entrée
+            setInputVolume(inputVolume)
+            
+            if let reverb = reverbNode, reverb.wetDryMix == 0 {
+                reverb.wetDryMix = 25
+                print("🔧 Applied audible wetDryMix for monitoring")
+            }
+            
+            print("✅ Monitoring started successfully")
+            
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                self.verifyAudioFlow()
+            }
+        } else {
+            print("❌ Failed to start monitoring")
+        }
+    }
+    
+    private func stopMonitoring() {
+        stopEngine()
+        print("🔇 Monitoring disabled")
+    }
+    
+    private func verifyAudioFlow() {
+        guard let engine = audioEngine,
+              let reverb = reverbNode,
+              let mixer = mainMixer else {
+            return
+        }
+        
+        print("🔍 AUDIO FLOW VERIFICATION:")
+        print("- Engine running: \(engine.isRunning)")
+        print("- Mixer volume: \(mixer.outputVolume)")
+        print("- Input volume: \(inputNode?.volume ?? 0)")
+        print("- Reverb wetDryMix: \(reverb.wetDryMix)")
+        print("- Connection format: \(connectionFormat?.description ?? "none")")
+    }
+    
+    // MARK: - Engine Control
+    
+    func startEngine() -> Bool {
+        guard let engine = audioEngine, !isEngineRunning else {
+            return isEngineRunning
+        }
+        
+        do {
+            #if os(iOS)
+            try AVAudioSession.sharedInstance().setActive(true)
+            #endif
+            
+            print("🚀 Starting audio engine...")
+            
+            try engine.start()
+            isEngineRunning = true
+            
+            Thread.sleep(forTimeInterval: 0.1)
+            
+            if let mixer = mainMixer {
+                mixer.outputVolume = 1.0
+            }
+            
+            if let inputNode = self.inputNode {
+                installAudioTap(inputNode: inputNode, bufferSize: 1024)
+            }
+            
+            print("✅ Engine started successfully")
+            return true
+            
+        } catch {
+            let nsError = error as NSError
+            print("❌ Engine start error: \(error.localizedDescription)")
+            print("   Error code: \(nsError.code)")
+            
+            isEngineRunning = false
+            return false
+        }
+    }
+    
+    func stopEngine() {
+        if let engine = audioEngine, engine.isRunning {
+            if let inputNode = self.inputNode {
+                inputNode.removeTap(onBus: 0)
+            }
+            engine.stop()
+            isEngineRunning = false
+            print("🛑 Audio engine stopped")
+        }
+        setupAttempts = 0
+    }
+    
+    private func cleanupEngine() {
+        if let oldEngine = audioEngine, oldEngine.isRunning {
+            if let inputNode = self.inputNode {
+                inputNode.removeTap(onBus: 0)
+            }
+            oldEngine.stop()
+        }
+        isEngineRunning = false
+    }
+    
+    // MARK: - Effects Management (inchangé)
+    
+    func updateReverbPreset(preset: ReverbPreset) {
+        guard let reverb = reverbNode else {
+            print("❌ Reverb node not available")
+            return
+        }
+        
+        guard let engine = audioEngine, let mixer = mainMixer else {
+            print("❌ Audio engine components missing")
+            setupAudioEngine()
+            return
+        }
+        
+        let originalVolume = mixer.outputVolume
+        mixer.outputVolume = max(0, originalVolume - 0.1)
+        
+        reverb.loadFactoryPreset(preset.preset)
+        
+        let targetWetDryMix = max(0, min(100, preset.wetDryMix))
+        reverb.wetDryMix = targetWetDryMix
+        
+        applyAdvancedParameters(to: reverb, preset: preset)
+        
+        if preset == .custom {
+            updateCrossFeedSimplified(enabled: crossFeedEnabled, preset: preset)
+        } else {
+            crossFeedEnabled = false
+            ensureBasicConnections()
+        }
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            mixer.outputVolume = originalVolume
+        }
+        
+        print("✅ Reverb preset '\(preset.rawValue)' applied - wetDryMix: \(targetWetDryMix)%")
+    }
+    
+    private func ensureBasicConnections() {
+        guard let engine = audioEngine,
+              let reverb = reverbNode else {
+            return
+        }
+        
+        if !engine.attachedNodes.contains(reverb) {
+            engine.attach(reverb)
+        }
+    }
+    
+    private func updateCrossFeedSimplified(enabled: Bool, preset: ReverbPreset) {
+        crossFeedEnabled = enabled
+        
+        if !enabled {
+            ensureBasicConnections()
+            return
+        }
+        
+        guard let stereoL = stereoMixerL,
+              let stereoR = stereoMixerR,
+              let delay = delayNode else {
+            return
+        }
+        
+        let crossFeedLevel = preset.crossFeed / 100.0
+        stereoL.outputVolume = crossFeedLevel
+        stereoR.outputVolume = crossFeedLevel
+        delay.delayTime = TimeInterval(crossFeedLevel * 0.02)
+        delay.feedback = crossFeedLevel * 0.3
+    }
+    
+    private func applyAdvancedParameters(to reverb: AVAudioUnitReverb, preset: ReverbPreset) {
+        let audioUnit = reverb.audioUnit
+        
+        let kDecayTimeParameter: AudioUnitParameterID = 7
+        let kHFDampingParameter: AudioUnitParameterID = 9
+        let kRoomSizeParameter: AudioUnitParameterID = 1000
+        let kDensityParameter: AudioUnitParameterID = 10
+        let kPreDelayParameter: AudioUnitParameterID = 5
+        
+        if preset == .custom {
+            let decayTime = max(0.1, min(8.0, preset.decayTime))
+            safeSetParameter(audioUnit: audioUnit, paramID: kDecayTimeParameter, value: decayTime)
+            
+            reverb.wetDryMix = preset.wetDryMix
+            
+            safeSetParameter(audioUnit: audioUnit, paramID: kPreDelayParameter,
+                          value: max(0, min(0.5, preset.preDelay / 1000.0)))
+            
+            safeSetParameter(audioUnit: audioUnit, paramID: kRoomSizeParameter,
+                          value: max(0, min(1, preset.roomSize / 100.0)))
+            
+            safeSetParameter(audioUnit: audioUnit, paramID: kDensityParameter,
+                          value: max(0, min(1, preset.density / 100.0)))
+            
+            safeSetParameter(audioUnit: audioUnit, paramID: kHFDampingParameter,
+                          value: max(0, min(1, preset.highFrequencyDamping / 100.0)))
+            
+        } else {
+            let decayTime = max(0.1, min(5.0, preset.decayTime))
+            safeSetParameter(audioUnit: audioUnit, paramID: kDecayTimeParameter, value: decayTime)
+            
+            safeSetParameter(audioUnit: audioUnit, paramID: kHFDampingParameter,
+                           value: max(0, min(1, preset.highFrequencyDamping / 100.0)))
+        }
+    }
+    
+    private func safeSetParameter(audioUnit: AudioUnit?, paramID: AudioUnitParameterID, value: Float) {
+        guard let audioUnit = audioUnit else { return }
+        
+        let clampedValue = max(-100, min(100, value))
+        
+        let status = AudioUnitSetParameter(
+            audioUnit,
+            paramID,
+            kAudioUnitScope_Global,
+            0,
+            clampedValue,
+            0
+        )
+        
+        if status != noErr {
+            print("⚠️ Parameter ID \(paramID) not available (error \(status))")
+        }
+    }
+    
+    func updateCrossFeed(enabled: Bool, value: Float) {
+        crossFeedEnabled = enabled
+    }
+    
+    func setOutputVolume(_ volume: Float, isMuted: Bool) {
+        let effectiveVolume = isMuted ? 0.0 : max(0.0, min(1.0, volume))
+        mainMixer?.outputVolume = isEngineRunning ? effectiveVolume : 0.0
+    }
+    
+    func diagnosticMonitoring() {
+        print("🔍 === DIAGNOSTIC COMPLET ===")
+        
+        guard let engine = audioEngine else {
+            print("❌ No audio engine")
+            return
+        }
+        
+        print("🎤 Engine Status:")
+        print("   - Engine running: \(engine.isRunning)")
+        print("   - Input volume: \(inputNode?.volume ?? 0)")
+        print("   - Connection format: \(connectionFormat?.description ?? "none")")
+        print("   - Main mixer volume: \(mainMixer?.outputVolume ?? 0)")
+        print("   - Reverb wetDryMix: \(reverbNode?.wetDryMix ?? 0)")
+        
+        #if os(macOS)
+        let micAccess = AVCaptureDevice.authorizationStatus(for: .audio)
+        print("   - Microphone access: \(micAccess == .authorized ? "✅" : "❌")")
+        #endif
+        
+        print("=== FIN DIAGNOSTIC ===")
+    }
+    
+    deinit {
+        cleanupEngine()
+        
+        #if os(iOS)
+        do {
+            try AVAudioSession.sharedInstance().setActive(false)
+        } catch {
+            print("Error deactivating audio session: \(error)")
+        }
+        #endif
+    }
+}
+import Foundation
+
+struct RecordingSession: Identifiable, Codable {
+    var id = UUID()
+    var date: Date
+    var duration: TimeInterval
+    var presetUsed: String
+    
+    static var mockSessions: [RecordingSession] {
+        [
+            RecordingSession(date: Date().addingTimeInterval(-3600), duration: 120, presetUsed: "Cathédrale"),
+            RecordingSession(date: Date().addingTimeInterval(-7200), duration: 180, presetUsed: "Grande Salle")
+        ]
+    }
+}
+
+class RecordingHistory: ObservableObject {
+    @Published var sessions: [RecordingSession] = []
+    private let sessionsKey = "recordingSessions"
+    
+    init() {
+        loadSessions()
+    }
+    
+    func addSession(preset: String, duration: TimeInterval) {
+        let newSession = RecordingSession(date: Date(), duration: duration, presetUsed: preset)
+        sessions.append(newSession)
+        saveSessions()
+    }
+    
+    private func saveSessions() {
+        if let encoded = try? JSONEncoder().encode(sessions) {
+            UserDefaults.standard.set(encoded, forKey: sessionsKey)
+        }
+    }
+    
+    private func loadSessions() {
+        if let data = UserDefaults.standard.data(forKey: sessionsKey),
+           let decoded = try? JSONDecoder().decode([RecordingSession].self, from: data) {
+            sessions = decoded
+        }
+    }
+    
+    func clearHistory() {
+        sessions.removeAll()
+        saveSessions()
+    }
+} 
+import SwiftUI
+import AVFoundation
+import UIKit
+
+struct ContentView: View {
+    @StateObject private var audioManager = AudioManager.shared
+    @StateObject private var recordingHistory = RecordingHistory()
+    
+    @State private var showingCustomReverbView = false
+    @State private var showingRecordingHistory = false
+    @State private var showingSaveOptions = false // NOUVEAU
+    @State private var recordingToSave: String? // NOUVEAU
+    @State private var isMonitoring = false
+    @State private var outputVolume: Float = 0.8
+    @State private var inputVolume: Float = 0.7
+    @State private var isMuted = false
+    
+    // Couleurs du thème
+    private let backgroundColor = Color(red: 0.08, green: 0.08, blue: 0.13)
+    private let cardColor = Color(red: 0.12, green: 0.12, blue: 0.18)
+    private let accentColor = Color.blue
+    
+    var body: some View {
+        ZStack {
+            backgroundColor.ignoresSafeArea()
+            
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(spacing: 12) {
+                    headerSection
+                    audioLevelSection
+                    
+                    if !isMonitoring {
+                        inputVolumeSection
+                        // SUPPRIMÉ: recordingLocationSection
+                    }
+                    
+                    monitoringControlSection
+                    reverbPresetsSection
+                    
+                    if isMonitoring {
+                        currentPresetDescription
+                    }
+                    
+                    volumeControlSection
+                    recordingControlSection
+                    
+                    Color.clear.frame(height: 20)
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 5)
+                .padding(.bottom, 20)
+            }
+        }
+        .sheet(isPresented: $showingCustomReverbView) {
+            CustomReverbView(audioManager: audioManager)
+        }
+        .sheet(isPresented: $showingRecordingHistory) {
+            EnhancedRecordingHistoryView(recordingHistory: recordingHistory)
+        }
+        // NOUVEAU: ActionSheet pour sauvegarder après stop
+        .actionSheet(isPresented: $showingSaveOptions) {
+            ActionSheet(
+                title: Text("Sauvegarder l'enregistrement"),
+                message: Text("Choisissez où sauvegarder votre enregistrement"),
+                buttons: [
+                    .default(Text("📁 Exporter vers Fichiers")) {
+                        if let filename = recordingToSave {
+                            exportToFiles(filename: filename)
+                        }
+                    },
+                    .default(Text("📧 Partager")) {
+                        if let filename = recordingToSave {
+                            shareRecording(filename: filename)
+                        }
+                    },
+                    .default(Text("☁️ Copier vers iCloud")) {
+                        if let filename = recordingToSave {
+                            copyToICloud(filename: filename)
+                        }
+                    },
+                    .cancel(Text("Garder dans l'app")) {
+                        recordingToSave = nil
+                    }
+                ]
+            )
+        }
+        .onAppear {
+            audioManager.prepareAudio()
+        }
+    }
+    
+    // MARK: - Toutes les sections précédentes (headerSection, audioLevelSection, etc.) restent identiques
+    
+    // MARK: - Header Section
+    private var headerSection: some View {
+        VStack(spacing: 2) {
+            Text("Reverb Studio")
+                .font(.system(size: 22, weight: .bold, design: .rounded))
+                .foregroundColor(.white)
+            
+            Text("Écoute en temps réel")
+                .font(.caption2)
+                .foregroundColor(.white.opacity(0.6))
+        }
+        .padding(.vertical, 4)
+    }
+    
+    // MARK: - Audio Level Visualizer
+    private var audioLevelSection: some View {
+        VStack(spacing: 4) {
+            Text("Niveau Audio")
+                .font(.caption)
+                .fontWeight(.medium)
+                .foregroundColor(.white)
+            
+            GeometryReader { geometry in
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(Color.gray.opacity(0.3))
+                        .frame(height: 8)
+                    
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(LinearGradient(
+                            gradient: Gradient(colors: [.green, .yellow, .red]),
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        ))
+                        .frame(width: geometry.size.width * CGFloat(audioManager.currentAudioLevel), height: 8)
+                        .animation(.easeInOut(duration: 0.1), value: audioManager.currentAudioLevel)
+                }
+            }
+            .frame(height: 8)
+            
+            Text("\(Int(audioManager.currentAudioLevel * 100))%")
+                .font(.caption2)
+                .foregroundColor(.white.opacity(0.8))
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(cardColor)
+        .cornerRadius(8)
+    }
+    
+    // MARK: - Input Volume Section
+    private var inputVolumeSection: some View {
+        VStack(spacing: 4) {
+            HStack {
+                Image(systemName: "mic.fill")
+                    .font(.caption)
+                    .foregroundColor(.white.opacity(0.7))
+                
+                Text("Volume Microphone")
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .foregroundColor(.white)
+                
+                Spacer()
+                
+                Text("\(Int(inputVolume * 100))%")
+                    .foregroundColor(.white)
+                    .frame(width: 35, alignment: .trailing)
+                    .font(.caption2)
+                    .monospacedDigit()
+            }
+            
+            Slider(value: $inputVolume, in: 0...1, step: 0.05)
+                .accentColor(.green)
+                .onChange(of: inputVolume) { newValue in
+                    audioManager.setInputVolume(newValue)
+                }
+        }
+        .padding(8)
+        .background(cardColor.opacity(0.8))
+        .cornerRadius(6)
+    }
+    
+    // MARK: - Monitoring Control
+    private var monitoringControlSection: some View {
+        Button(action: {
+            toggleMonitoring()
+        }) {
+            HStack(spacing: 8) {
+                Image(systemName: isMonitoring ? "stop.circle.fill" : "play.circle.fill")
+                    .font(.title3)
+                
+                Text(isMonitoring ? "Arrêter l'Écoute" : "Démarrer l'Écoute")
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+            }
+            .foregroundColor(.white)
+            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity)
+            .background(isMonitoring ? Color.red : accentColor)
+            .cornerRadius(8)
+        }
+    }
+    
+    // MARK: - Reverb Presets Section
+    private var reverbPresetsSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Modes de Réverbération")
+                .font(.subheadline)
+                .foregroundColor(.white)
+                .padding(.horizontal, 2)
+            
+            HStack(spacing: 8) {
+                ForEach(ReverbPreset.allCases, id: \.id) { preset in
+                    ReverbIconButton(
+                        preset: preset,
+                        isSelected: audioManager.selectedReverbPreset == preset,
+                        isEnabled: isMonitoring,
+                        onTap: {
+                            if isMonitoring {
+                                audioManager.updateReverbPreset(preset)
+                                if preset == .custom {
+                                    showingCustomReverbView = true
+                                }
+                            }
+                        }
+                    )
+                }
+            }
+        }
+    }
+    
+    // MARK: - Current Preset Description
+    private var currentPresetDescription: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text("Effet: \(audioManager.selectedReverbPreset.rawValue)")
+                .font(.caption)
+                .fontWeight(.medium)
+                .foregroundColor(.white)
+            
+            Text(audioManager.currentPresetDescription)
+                .font(.caption2)
+                .foregroundColor(.white.opacity(0.7))
+                .lineLimit(1)
+        }
+        .padding(8)
+        .background(cardColor.opacity(0.7))
+        .cornerRadius(6)
+    }
+    
+    // MARK: - Volume Control
+    private var volumeControlSection: some View {
+        VStack(spacing: 4) {
+            HStack {
+                Image(systemName: "speaker.wave.2")
+                    .font(.caption)
+                    .foregroundColor(.white.opacity(0.7))
+                
+                Text("Volume Sortie")
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .foregroundColor(.white)
+                
+                Spacer()
+                
+                Button(action: {
+                    isMuted.toggle()
+                }) {
+                    Image(systemName: isMuted ? "speaker.slash" : "speaker.wave.3")
+                        .foregroundColor(isMuted ? .red : .white)
+                        .font(.body)
+                }
+            }
+            
+            HStack {
+                Slider(value: $outputVolume, in: 0...1, step: 0.05)
+                    .accentColor(accentColor)
+                    .disabled(!isMonitoring)
+                
+                Text("\(Int(outputVolume * 100))%")
+                    .foregroundColor(.white)
+                    .frame(width: 35, alignment: .trailing)
+                    .font(.caption2)
+                    .monospacedDigit()
+            }
+        }
+        .padding(8)
+        .background(cardColor)
+        .cornerRadius(6)
+        .opacity(isMonitoring ? 1.0 : 0.6)
+        .onChange(of: outputVolume) { _ in
+            updateAudioOutput()
+        }
+        .onChange(of: isMuted) { _ in
+            updateAudioOutput()
+        }
+    }
+    
+    // MARK: - Recording Controls
+    private var recordingControlSection: some View {
+        VStack(spacing: 6) {
+            HStack(spacing: 8) {
+                Button(action: {
+                    handleRecordingToggle()
+                }) {
+                    HStack(spacing: 6) {
+                        Image(systemName: audioManager.isRecording ? "stop.circle.fill" : "record.circle")
+                            .font(.body)
+                        
+                        Text(audioManager.isRecording ? "Arrêter" : "Enregistrer")
+                            .font(.caption)
+                            .fontWeight(.medium)
+                    }
+                    .foregroundColor(.white)
+                    .padding(.vertical, 8)
+                    .padding(.horizontal, 12)
+                    .frame(maxWidth: .infinity)
+                    .background(audioManager.isRecording ? Color.red : Color.orange)
+                    .cornerRadius(6)
+                }
+                .disabled(!isMonitoring)
+                
+                Button(action: {
+                    showingRecordingHistory = true
+                }) {
+                    Image(systemName: "list.bullet.circle")
+                        .font(.body)
+                        .foregroundColor(.white)
+                        .padding(8)
+                        .background(Color.gray.opacity(0.6))
+                        .cornerRadius(6)
+                }
+            }
+            
+            if audioManager.isRecording {
+                HStack(spacing: 4) {
+                    Circle()
+                        .fill(Color.red)
+                        .frame(width: 4, height: 4)
+                        .scaleEffect(1.0)
+                        .animation(.easeInOut(duration: 1).repeatForever(autoreverses: true), value: audioManager.isRecording)
+                    
+                    Text("Enregistrement...")
+                        .font(.caption2)
+                        .foregroundColor(.red)
+                }
+            } else if let filename = audioManager.lastRecordingFilename {
+                Text("Dernier: \(filename)")
+                    .font(.caption2)
+                    .foregroundColor(.green)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+        }
+    }
+    
+    // MARK: - Helper Functions CORRIGÉES
+    
+    private func toggleMonitoring() {
+        isMonitoring.toggle()
+        
+        if isMonitoring {
+            print("🎧 Starting monitoring...")
+            audioManager.prepareAudio()
+            audioManager.setInputVolume(inputVolume)
+            audioManager.startMonitoring()
+        } else {
+            print("🔇 Stopping monitoring...")
+            audioManager.stopMonitoring()
+        }
+    }
+    
+    // CORRECTION CRITIQUE: Gestion cohérente des enregistrements
+    private func handleRecordingToggle() {
+        print("🎙️ Recording toggle pressed")
+        
+        guard isMonitoring else {
+            print("⚠️ Cannot record: monitoring not active")
+            return
+        }
+        
+        if audioManager.isRecording {
+            print("🛑 Stopping recording...")
+            audioManager.stopRecording { success, filename, duration in
+                if success {
+                    print("✅ Recording stopped successfully: \(filename ?? "unknown")")
+                    let preset = audioManager.selectedReverbPreset.rawValue
+                    recordingHistory.addSession(preset: preset, duration: duration)
+                    
+                    // NOUVEAU: Proposer immédiatement les options de sauvegarde
+                    DispatchQueue.main.async {
+                        self.recordingToSave = filename
+                        self.showingSaveOptions = true
+                    }
+                } else {
+                    print("❌ Recording stop failed")
+                }
+            }
+        } else {
+            print("▶️ Starting recording...")
+            let preset = audioManager.selectedReverbPreset.rawValue
+            audioManager.startRecording { success in
+                if success {
+                    print("✅ Recording started with preset: \(preset)")
+                } else {
+                    print("❌ Recording start failed")
+                }
+            }
+        }
+    }
+    
+    // NOUVEAU: Méthodes de sauvegarde
+    private func exportToFiles(filename: String) {
+        let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let recordingsPath = documentsPath.appendingPathComponent("Recordings")
+        let fileURL = recordingsPath.appendingPathComponent(filename)
+        
+        guard FileManager.default.fileExists(atPath: fileURL.path) else {
+            print("❌ File not found for export: \(fileURL.path)")
+            return
+        }
+        
+        presentDocumentPicker(for: fileURL)
+    }
+    
+    private func shareRecording(filename: String) {
+        let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let recordingsPath = documentsPath.appendingPathComponent("Recordings")
+        let fileURL = recordingsPath.appendingPathComponent(filename)
+        
+        guard FileManager.default.fileExists(atPath: fileURL.path) else {
+            print("❌ File not found for sharing: \(fileURL.path)")
+            return
+        }
+        
+        let activityController = UIActivityViewController(activityItems: [fileURL], applicationActivities: nil)
+        
+        DispatchQueue.main.async {
+            if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+               let window = windowScene.windows.first,
+               let rootViewController = window.rootViewController {
+                
+                if let presentedController = rootViewController.presentedViewController {
+                    presentedController.present(activityController, animated: true)
+                } else {
+                    rootViewController.present(activityController, animated: true)
+                }
+            }
+        }
+    }
+    
+    private func copyToICloud(filename: String) {
+        print("☁️ iCloud copy for: \(filename)")
+        // Pour l'instant, utiliser le même export que Files
+        exportToFiles(filename: filename)
+    }
+    
+    private func presentDocumentPicker(for fileURL: URL) {
+        DispatchQueue.main.async {
+            if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+               let window = windowScene.windows.first,
+               let rootViewController = window.rootViewController {
+                
+                let documentPicker = UIDocumentPickerViewController(forExporting: [fileURL])
+                documentPicker.modalPresentationStyle = .formSheet
+                
+                if let presentedController = rootViewController.presentedViewController {
+                    presentedController.present(documentPicker, animated: true)
+                } else {
+                    rootViewController.present(documentPicker, animated: true)
+                }
+                
+                print("📁 Document picker presented for: \(fileURL.lastPathComponent)")
+            }
+        }
+    }
+    
+    private func updateAudioOutput() {
+        audioManager.setOutputVolume(outputVolume, isMuted: isMuted)
+    }
+    
+    // MARK: - Enhanced Recording Session Row CORRIGÉ
+    struct EnhancedRecordingSessionRow: View {
+        let session: RecordingSession
+        @ObservedObject var audioPlayer: AudioPlayerManager
+        let onDelete: () -> Void
+        
+        @State private var showingDeleteAlert = false
+        
+        var body: some View {
+            VStack(spacing: 8) {
+                // Info de la session
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(session.presetUsed)
+                            .font(.headline)
+                            .foregroundColor(.white)
+                        
+                        Text("Durée: \(formatDuration(session.duration))")
+                            .font(.subheadline)
+                            .foregroundColor(.white.opacity(0.8))
+                    }
+                    
+                    Spacer()
+                    
+                    Text(formatDate(session.date))
+                        .font(.caption)
+                        .foregroundColor(.white.opacity(0.6))
+                }
+                
+                // Boutons de contrôle
+                HStack(spacing: 12) {
+                    // Bouton Play/Pause
+                    Button(action: {
+                        handlePlayButtonTapped()
+                    }) {
+                        HStack(spacing: 4) {
+                            Image(systemName: playButtonIcon)
+                                .font(.caption)
+                            
+                            Text(playButtonText)
+                                .font(.caption)
+                        }
+                        .foregroundColor(.white)
+                        .padding(.vertical, 6)
+                        .padding(.horizontal, 12)
+                        .background(playButtonColor)
+                        .cornerRadius(6)
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                    
+                    Spacer()
+                    
+                    // Bouton Delete
+                    Button(action: {
+                        showingDeleteAlert = true
+                    }) {
+                        Image(systemName: "trash")
+                            .font(.caption)
+                            .foregroundColor(.white)
+                            .padding(8)
+                            .background(Color.red.opacity(0.7))
+                            .cornerRadius(6)
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                }
+            }
+            .padding(.vertical, 4)
+            .alert("Supprimer l'enregistrement", isPresented: $showingDeleteAlert) {
+                Button("Supprimer", role: .destructive) {
+                    onDelete()
+                }
+                Button("Annuler", role: .cancel) { }
+            } message: {
+                Text("Cette action est irréversible.")
+            }
+        }
+        
+        // MARK: - Properties
+        
+        private var playButtonIcon: String {
+            if audioPlayer.currentSessionId == session.id {
+                return audioPlayer.isPlaying ? "pause.circle.fill" : "play.circle.fill"
+            } else {
+                return "play.circle"
+            }
+        }
+        
+        private var playButtonText: String {
+            if audioPlayer.currentSessionId == session.id && audioPlayer.isPlaying {
+                return "Pause"
+            } else {
+                return "Play"
+            }
+        }
+        
+        private var playButtonColor: Color {
+            if audioPlayer.currentSessionId == session.id && audioPlayer.isPlaying {
+                return Color.orange
+            } else {
+                return Color.green
+            }
+        }
+        
+        // CORRECTION CRITIQUE: Générer le bon chemin de fichier
+        private func handlePlayButtonTapped() {
+            print("🎵 Play button tapped for session: \(session.id)")
+            
+            // CORRECTION: Utiliser le même chemin que pour la sauvegarde
+            let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            let recordingsPath = documentsPath.appendingPathComponent("Recordings")
+            let fileName = generateFileName(for: session)
+            let fileURL = recordingsPath.appendingPathComponent(fileName)
+            
+            print("🔍 Looking for file at: \(fileURL.path)")
+            print("🔍 File exists: \(FileManager.default.fileExists(atPath: fileURL.path))")
+            
+            // Vérifier que le fichier existe
+            guard FileManager.default.fileExists(atPath: fileURL.path) else {
+                print("❌ Recording file not found: \(fileURL.path)")
+                
+                // DEBUG: Lister les fichiers dans le dossier
+                print("📁 Files in Recordings folder:")
+                do {
+                    let files = try FileManager.default.contentsOfDirectory(at: recordingsPath, includingPropertiesForKeys: nil)
+                    for file in files {
+                        print("  - \(file.lastPathComponent)")
+                    }
+                } catch {
+                    print("❌ Cannot list files: \(error)")
+                }
+                return
+            }
+            
+            if audioPlayer.currentSessionId == session.id && audioPlayer.isPlaying {
+                // Pause
+                print("⏸️ Pausing playback")
+                audioPlayer.pausePlayback()
+            } else {
+                // Play
+                print("▶️ Starting playback for: \(fileURL.lastPathComponent)")
+                audioPlayer.playRecording(at: fileURL, sessionId: session.id)
+            }
+        }
+        
+        private func generateFileName(for session: RecordingSession) -> String {
+            let formatter = DateFormatter()
+            formatter.dateFormat = "yyyyMMdd_HHmmss"
+            let timestamp = formatter.string(from: session.date)
+            return "recording_\(timestamp).m4a"
+        }
+        
+        private func formatDate(_ date: Date) -> String {
+            let formatter = DateFormatter()
+            formatter.dateStyle = .short
+            formatter.timeStyle = .short
+            return formatter.string(from: date)
+        }
+        
+        private func formatDuration(_ duration: TimeInterval) -> String {
+            let minutes = Int(duration) / 60
+            let seconds = Int(duration) % 60
+            return String(format: "%02d:%02d", minutes, seconds)
+        }
+    }
+
+}
+// MARK: - AudioPlayerManager (AJOUT MANQUANT)
+class AudioPlayerManager: NSObject, ObservableObject {
+    @Published var isPlaying = false
+    @Published var currentSessionId: UUID? = nil
+    
+    private var audioPlayer: AVAudioPlayer?
+    
+    override init() {
+        super.init()
+    }
+    
+    func playRecording(at url: URL, sessionId: UUID) {
+        stopPlayback()
+        
+        do {
+            audioPlayer = try AVAudioPlayer(contentsOf: url)
+            audioPlayer?.delegate = self
+            audioPlayer?.prepareToPlay()
+            
+            let success = audioPlayer?.play() ?? false
+            
+            if success {
+                isPlaying = true
+                currentSessionId = sessionId
+                print("▶️ Playing recording: \(url.lastPathComponent)")
+            } else {
+                print("❌ Failed to start playback")
+            }
+            
+        } catch {
+            print("❌ Playback error: \(error.localizedDescription)")
+        }
+    }
+    
+    func pausePlayback() {
+        audioPlayer?.pause()
+        isPlaying = false
+        print("⏸️ Playback paused")
+    }
+    
+    func resumePlayback() {
+        guard let player = audioPlayer else { return }
+        
+        let success = player.play()
+        isPlaying = success
+        print(success ? "▶️ Playback resumed" : "❌ Failed to resume")
+    }
+    
+    func stopPlayback() {
+        audioPlayer?.stop()
+        audioPlayer = nil
+        isPlaying = false
+        currentSessionId = nil
+        print("⏹️ Playback stopped")
+    }
+}
+
+extension AudioPlayerManager: AVAudioPlayerDelegate {
+    func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
+        DispatchQueue.main.async {
+            self.isPlaying = false
+            self.currentSessionId = nil
+            print("✅ Playback finished")
+        }
+    }
+    
+    func audioPlayerDecodeErrorDidOccur(_ player: AVAudioPlayer, error: Error?) {
+        DispatchQueue.main.async {
+            self.isPlaying = false
+            self.currentSessionId = nil
+            print("❌ Playback error: \(error?.localizedDescription ?? "unknown")")
+        }
+    }
+}
+
+// MARK: - ReverbIconButton (AJOUT MANQUANT)
+struct ReverbIconButton: View {
+    let preset: ReverbPreset
+    let isSelected: Bool
+    let isEnabled: Bool
+    let onTap: () -> Void
+    
+    var body: some View {
+        Button(action: onTap) {
+            VStack(spacing: 2) {
+                Image(systemName: iconForPreset(preset))
+                    .font(.title3)
+                    .foregroundColor(isSelected ? .blue : .white.opacity(0.8))
+                
+                Text(preset.rawValue.prefix(1))
+                    .font(.caption2)
+                    .fontWeight(isSelected ? .bold : .medium)
+                    .foregroundColor(isSelected ? .blue : .white.opacity(0.6))
+            }
+            .frame(width: 44, height: 44)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color(red: 0.12, green: 0.12, blue: 0.18))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(isSelected ? Color.blue : Color.clear, lineWidth: 2)
+                    )
+            )
+        }
+        .disabled(!isEnabled)
+        .opacity(isEnabled ? 1.0 : 0.5)
+    }
+    
+    private func iconForPreset(_ preset: ReverbPreset) -> String {
+        switch preset {
+        case .clean: return "waveform"
+        case .vocalBooth: return "mic"
+        case .studio: return "hifispeaker"
+        case .cathedral: return "building.columns"
+        case .custom: return "slider.horizontal.3"
+        }
+    }
+}
+
+// MARK: - EnhancedRecordingHistoryView (AJOUT MANQUANT)
+struct EnhancedRecordingHistoryView: View {
+    @ObservedObject var recordingHistory: RecordingHistory
+    @Environment(\.presentationMode) var presentationMode
+    @StateObject private var audioPlayer = AudioPlayerManager()
+    
+    private let backgroundColor = Color(red: 0.08, green: 0.08, blue: 0.13)
+    private let cardColor = Color(red: 0.12, green: 0.12, blue: 0.18)
+    
+    var body: some View {
+        NavigationView {
+            ZStack {
+                backgroundColor.ignoresSafeArea()
+                
+                if recordingHistory.sessions.isEmpty {
+                    VStack(spacing: 16) {
+                        Image(systemName: "music.note.list")
+                            .font(.system(size: 60))
+                            .foregroundColor(.white.opacity(0.3))
+                        
+                        Text("Aucun enregistrement")
+                            .font(.title2)
+                            .foregroundColor(.white.opacity(0.7))
+                        
+                        Text("Vos enregistrements apparaîtront ici")
+                            .font(.body)
+                            .foregroundColor(.white.opacity(0.5))
+                    }
+                } else {
+                    List {
+                        ForEach(recordingHistory.sessions.reversed()) { session in
+                            EnhancedRecordingSessionRow(
+                                session: session,
+                                audioPlayer: audioPlayer,
+                                onDelete: {
+                                    deleteSession(session)
+                                }
+                            )
+                            .listRowBackground(cardColor)
+                        }
+                    }
+                    .scrollContentBackground(.hidden)
+                }
+            }
+            .navigationTitle("Historique")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Fermer") {
+                        audioPlayer.stopPlayback()
+                        presentationMode.wrappedValue.dismiss()
+                    }
+                    .foregroundColor(.blue)
+                }
+                
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Vider") {
+                        audioPlayer.stopPlayback()
+                        recordingHistory.clearHistory()
+                    }
+                    .foregroundColor(.red)
+                    .disabled(recordingHistory.sessions.isEmpty)
+                }
+            }
+        }
+        .onDisappear {
+            audioPlayer.stopPlayback()
+        }
+    }
+    
+    private func deleteSession(_ session: RecordingSession) {
+        if audioPlayer.currentSessionId == session.id {
+            audioPlayer.stopPlayback()
+        }
+        
+        recordingHistory.sessions.removeAll { $0.id == session.id }
+        
+        let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let recordingsPath = documentsPath.appendingPathComponent("Recordings")
+        let fileName = generateFileName(for: session)
+        let fileURL = recordingsPath.appendingPathComponent(fileName)
+        
+        try? FileManager.default.removeItem(at: fileURL)
+        
+        print("🗑️ Session deleted: \(session.presetUsed)")
+    }
+    
+    private func generateFileName(for session: RecordingSession) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyyMMdd_HHmmss"
+        let timestamp = formatter.string(from: session.date)
+        return "recording_\(timestamp).m4a"
+    }
+}
+
+// MARK: - EnhancedRecordingSessionRow (AJOUT MANQUANT)
+struct EnhancedRecordingSessionRow: View {
+    let session: RecordingSession
+    @ObservedObject var audioPlayer: AudioPlayerManager
+    let onDelete: () -> Void
+    
+    @State private var showingDeleteAlert = false
+    
+    var body: some View {
+        VStack(spacing: 8) {
+            // Info de la session
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(session.presetUsed)
+                        .font(.headline)
+                        .foregroundColor(.white)
+                    
+                    Text("Durée: \(formatDuration(session.duration))")
+                        .font(.subheadline)
+                        .foregroundColor(.white.opacity(0.8))
+                }
+                
+                Spacer()
+                
+                Text(formatDate(session.date))
+                    .font(.caption)
+                    .foregroundColor(.white.opacity(0.6))
+            }
+            
+            // Boutons de contrôle
+            HStack(spacing: 12) {
+                // Bouton Play/Pause
+                Button(action: {
+                    handlePlayButtonTapped()
+                }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: playButtonIcon)
+                            .font(.caption)
+                        
+                        Text(playButtonText)
+                            .font(.caption)
+                    }
+                    .foregroundColor(.white)
+                    .padding(.vertical, 6)
+                    .padding(.horizontal, 12)
+                    .background(playButtonColor)
+                    .cornerRadius(6)
+                }
+                .buttonStyle(PlainButtonStyle())
+                
+                Spacer()
+                
+                // Bouton Delete
+                Button(action: {
+                    showingDeleteAlert = true
+                }) {
+                    Image(systemName: "trash")
+                        .font(.caption)
+                        .foregroundColor(.white)
+                        .padding(8)
+                        .background(Color.red.opacity(0.7))
+                        .cornerRadius(6)
+                }
+                .buttonStyle(PlainButtonStyle())
+            }
+        }
+        .padding(.vertical, 4)
+        .alert("Supprimer l'enregistrement", isPresented: $showingDeleteAlert) {
+            Button("Supprimer", role: .destructive) {
+                onDelete()
+            }
+            Button("Annuler", role: .cancel) { }
+        } message: {
+            Text("Cette action est irréversible.")
+        }
+    }
+    
+    // MARK: - Properties
+    
+    private var playButtonIcon: String {
+        if audioPlayer.currentSessionId == session.id {
+            return audioPlayer.isPlaying ? "pause.circle.fill" : "play.circle.fill"
+        } else {
+            return "play.circle"
+        }
+    }
+    
+    private var playButtonText: String {
+        if audioPlayer.currentSessionId == session.id && audioPlayer.isPlaying {
+            return "Pause"
+        } else {
+            return "Play"
+        }
+    }
+    
+    private var playButtonColor: Color {
+        if audioPlayer.currentSessionId == session.id && audioPlayer.isPlaying {
+            return Color.orange
+        } else {
+            return Color.green
+        }
+    }
+    
+    private func handlePlayButtonTapped() {
+        print("🎵 Play button tapped for session: \(session.id)")
+        
+        let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let recordingsPath = documentsPath.appendingPathComponent("Recordings")
+        let fileName = generateFileName(for: session)
+        let fileURL = recordingsPath.appendingPathComponent(fileName)
+        
+        print("🔍 Looking for file at: \(fileURL.path)")
+        print("🔍 File exists: \(FileManager.default.fileExists(atPath: fileURL.path))")
+        
+        guard FileManager.default.fileExists(atPath: fileURL.path) else {
+            print("❌ Recording file not found: \(fileURL.path)")
+            
+            // DEBUG: Lister les fichiers dans le dossier
+            print("📁 Files in Recordings folder:")
+            do {
+                let files = try FileManager.default.contentsOfDirectory(at: recordingsPath, includingPropertiesForKeys: nil)
+                for file in files {
+                    print("  - \(file.lastPathComponent)")
+                }
+            } catch {
+                print("❌ Cannot list files: \(error)")
+            }
+            return
+        }
+        
+        if audioPlayer.currentSessionId == session.id && audioPlayer.isPlaying {
+            print("⏸️ Pausing playback")
+            audioPlayer.pausePlayback()
+        } else {
+            print("▶️ Starting playback for: \(fileURL.lastPathComponent)")
+            audioPlayer.playRecording(at: fileURL, sessionId: session.id)
+        }
+    }
+    
+    private func generateFileName(for session: RecordingSession) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyyMMdd_HHmmss"
+        let timestamp = formatter.string(from: session.date)
+        return "recording_\(timestamp).m4a"
+    }
+    
+    private func formatDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .short
+        formatter.timeStyle = .short
+        return formatter.string(from: date)
+    }
+    
+    private func formatDuration(_ duration: TimeInterval) -> String {
+        let minutes = Int(duration) / 60
+        let seconds = Int(duration) % 60
+        return String(format: "%02d:%02d", minutes, seconds)
+    }
+}
