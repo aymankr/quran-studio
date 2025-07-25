@@ -30,7 +30,8 @@ struct ContentView: View {
     private let backgroundColor = Color(red: 0.08, green: 0.08, blue: 0.13)
     private let cardColor = Color(red: 0.12, green: 0.12, blue: 0.18)
     private let accentColor = Color.blue
-    
+    @State private var showingCustomReverbView = false
+
     var body: some View {
         ZStack {
             backgroundColor.ignoresSafeArea()
@@ -472,6 +473,11 @@ struct ContentView: View {
                         if isMonitoring {
                             selectedReverbPreset = preset
                             audioManager.updateReverbPreset(preset)
+                            
+                            // NOUVEAU: Présenter CustomReverbView si preset custom
+                            if preset == .custom {
+                                showingCustomReverbView = true
+                            }
                         }
                     }) {
                         VStack(spacing: 4) {
@@ -508,16 +514,56 @@ struct ContentView: View {
                 }
             }
             
-            if isMonitoring {
-                Text("Effet: \(selectedReverbPreset.rawValue) - \(getPresetDescription(selectedReverbPreset))")
-                    .font(.caption2)
-                    .foregroundColor(.white.opacity(0.8))
+            // NOUVEAU: Bouton direct pour Custom quand monitoring inactif
+            if !isMonitoring && selectedReverbPreset == .custom {
+                Button(action: {
+                    showingCustomReverbView = true
+                }) {
+                    HStack {
+                        Image(systemName: "slider.horizontal.3")
+                        Text("Configurer les paramètres personnalisés")
+                            .font(.caption)
+                    }
+                    .foregroundColor(accentColor)
                     .padding(8)
-                    .background(cardColor.opacity(0.5))
+                    .background(cardColor.opacity(0.6))
                     .cornerRadius(6)
+                }
+                #if os(macOS)
+                .buttonStyle(PlainButtonStyle())
+                #endif
+            }
+            
+            if isMonitoring {
+                HStack {
+                    Text("Effet: \(selectedReverbPreset.rawValue) - \(getPresetDescription(selectedReverbPreset))")
+                        .font(.caption2)
+                        .foregroundColor(.white.opacity(0.8))
+                    
+                    // NOUVEAU: Bouton pour accéder aux réglages Custom pendant monitoring
+                    if selectedReverbPreset == .custom {
+                        Spacer()
+                        Button("Régler") {
+                            showingCustomReverbView = true
+                        }
+                        .font(.caption2)
+                        .foregroundColor(accentColor)
+                        #if os(macOS)
+                        .buttonStyle(PlainButtonStyle())
+                        #endif
+                    }
+                }
+                .padding(8)
+                .background(cardColor.opacity(0.5))
+                .cornerRadius(6)
             }
         }
+        // NOUVEAU: Présentation de CustomReverbView
+        .sheet(isPresented: $showingCustomReverbView) {
+            CustomReverbView(audioManager: audioManager)
+        }
     }
+
     
     private var adaptiveColumnCount: Int {
         #if os(macOS)

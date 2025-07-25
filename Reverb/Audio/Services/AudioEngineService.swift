@@ -586,10 +586,12 @@ class AudioEngineService {
     }
     
     // MARK: - Advanced Parameters (reste identique)
-    
+    // Dans AudioEngineService.swift, améliorer applyAdvancedParameters pour plus de réactivité
+
     private func applyAdvancedParameters(to reverb: AVAudioUnitReverb, preset: ReverbPreset) {
         let audioUnit = reverb.audioUnit
         
+        // Paramètres Audio Unit
         let kDecayTimeParameter: AudioUnitParameterID = 7
         let kHFDampingParameter: AudioUnitParameterID = 9
         let kRoomSizeParameter: AudioUnitParameterID = 1000
@@ -597,24 +599,32 @@ class AudioEngineService {
         let kPreDelayParameter: AudioUnitParameterID = 5
         
         if preset == .custom {
-            let decayTime = max(0.1, min(8.0, preset.decayTime))
+            // AMÉLIORATION: Application séquentielle pour éviter les conflits
+            let customSettings = ReverbPreset.customSettings
+            
+            // Application par priorité (wetDryMix en premier pour effet immédiat)
+            reverb.wetDryMix = customSettings.wetDryMix
+            
+            // Puis les autres paramètres
+            let decayTime = max(0.1, min(8.0, customSettings.decayTime))
             safeSetParameter(audioUnit: audioUnit, paramID: kDecayTimeParameter, value: decayTime)
             
-            reverb.wetDryMix = preset.wetDryMix
-            
             safeSetParameter(audioUnit: audioUnit, paramID: kPreDelayParameter,
-                          value: max(0, min(0.5, preset.preDelay / 1000.0)))
+                          value: max(0, min(0.5, customSettings.preDelay / 1000.0)))
             
             safeSetParameter(audioUnit: audioUnit, paramID: kRoomSizeParameter,
-                          value: max(0, min(1, preset.roomSize / 100.0)))
+                          value: max(0, min(1, customSettings.size)))
             
             safeSetParameter(audioUnit: audioUnit, paramID: kDensityParameter,
-                          value: max(0, min(1, preset.density / 100.0)))
+                          value: max(0, min(1, customSettings.density / 100.0)))
             
             safeSetParameter(audioUnit: audioUnit, paramID: kHFDampingParameter,
-                          value: max(0, min(1, preset.highFrequencyDamping / 100.0)))
+                          value: max(0, min(1, customSettings.highFrequencyDamping / 100.0)))
+            
+            print("🎛️ LIVE: Custom parameters applied - wetDry:\(customSettings.wetDryMix)%, decay:\(decayTime)s")
             
         } else {
+            // Paramètres prédéfinis
             let decayTime = max(0.1, min(5.0, preset.decayTime))
             safeSetParameter(audioUnit: audioUnit, paramID: kDecayTimeParameter, value: decayTime)
             

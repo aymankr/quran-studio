@@ -29,7 +29,24 @@ struct CustomReverbView: View {
                         .font(.system(size: 22, weight: .bold, design: .rounded))
                         .foregroundColor(.white)
                         .padding(.top, 15)
-                    
+                    // NOUVEAU: Indicateur de monitoring live
+                   if audioManager.isMonitoring && audioManager.selectedReverbPreset == .custom {
+                       HStack {
+                           Circle()
+                               .fill(Color.green)
+                               .frame(width: 8, height: 8)
+                               .scaleEffect(1.0)
+                               .animation(.easeInOut(duration: 1).repeatForever(autoreverses: true), value: true)
+                           
+                           Text("🎵 Changements appliqués en temps réel")
+                               .font(.caption)
+                               .foregroundColor(.green)
+                               .fontWeight(.medium)
+                       }
+                       .padding(8)
+                       .background(Color.green.opacity(0.1))
+                       .cornerRadius(8)
+                   }
                     // Description
                     Text("Ajustez les paramètres pour créer votre propre atmosphère acoustique.")
                         .font(.subheadline)
@@ -235,6 +252,8 @@ struct CustomReverbView: View {
     }
     
     /// Met à jour les paramètres de réverbération personnalisés
+    // Dans CustomReverbView.swift, modifier la méthode updateCustomReverb pour plus de réactivité
+
     private func updateCustomReverb() {
         // Créer une structure de paramètres personnalisés
         let customSettings = CustomReverbSettings(
@@ -250,14 +269,21 @@ struct CustomReverbView: View {
         // Mettre à jour les paramètres statiques
         ReverbPreset.updateCustomSettings(customSettings)
         
-        // Appliquer immédiatement si en mode custom
+        // AMÉLIORATION: Appliquer immédiatement si en mode custom
         if audioManager.selectedReverbPreset == .custom {
-            audioManager.updateReverbPreset(.custom)
-            
-            // Mettre à jour le cross-feed si disponible
-            audioEngineService?.updateCrossFeed(enabled: hasCrossFeed, value: crossFeed)
+            // Force la mise à jour en temps réel
+            DispatchQueue.main.async {
+                self.audioManager.updateReverbPreset(.custom)
+                
+                // Mettre à jour le cross-feed si disponible
+                self.audioEngineService?.updateCrossFeed(enabled: self.hasCrossFeed, value: self.crossFeed)
+            }
         }
+        
+        // NOUVEAU: Mise à jour de l'état dans AudioManager
+        audioManager.customReverbSettings = customSettings
     }
+
     
     /// Réinitialise aux valeurs par défaut
     private func resetToDefaults() {
@@ -296,8 +322,9 @@ struct DirectSlider: View {
     
     @State private var isEditingNow = false
     @State private var lastUpdateTime = Date()
-    private let throttleInterval: TimeInterval = 0.05
-    private let highPriorityInterval: TimeInterval = 0.02
+    // AMÉLIORATION: Intervals plus courts pour plus de réactivité
+    private let throttleInterval: TimeInterval = 0.03  // Réduit de 0.05 à 0.03
+    private let highPriorityInterval: TimeInterval = 0.01  // Réduit de 0.02 à 0.01
     
     init(value: Binding<Float>, range: ClosedRange<Float>, step: Float, onChange: @escaping (Float) -> Void, highPriority: Bool = false) {
         self._value = value
@@ -308,35 +335,35 @@ struct DirectSlider: View {
     }
     
     var body: some View {
-        Slider(
-            value: $value,
-            in: range,
-            step: step,
-            onEditingChanged: { editing in
-                isEditingNow = editing
-                
-                if !editing {
-                    // Appliquer immédiatement à la fin de l'édition
-                    onChange(value)
-                }
-            }
-        )
-        .onChange(of: value) { newValue in
-            // Pendant l'édition, appliquer avec throttling
-            if isEditingNow {
-                let now = Date()
-                let interval = highPriority ? highPriorityInterval : throttleInterval
-                
-                if now.timeIntervalSince(lastUpdateTime) >= interval {
-                    onChange(newValue)
-                    lastUpdateTime = now
-                }
-            } else {
-                // Si pas en édition, appliquer immédiatement
-                onChange(newValue)
-            }
-        }
-    }
+          Slider(
+              value: $value,
+              in: range,
+              step: step,
+              onEditingChanged: { editing in
+                  isEditingNow = editing
+                  
+                  if !editing {
+                      // Appliquer immédiatement à la fin de l'édition
+                      onChange(value)
+                  }
+              }
+          )
+          .onChange(of: value) { newValue in
+              // AMÉLIORATION: Application plus fluide pendant l'édition
+              if isEditingNow {
+                  let now = Date()
+                  let interval = highPriority ? highPriorityInterval : throttleInterval
+                  
+                  if now.timeIntervalSince(lastUpdateTime) >= interval {
+                      onChange(newValue)
+                      lastUpdateTime = now
+                  }
+              } else {
+                  // Si pas en édition, appliquer immédiatement
+                  onChange(newValue)
+              }
+          }
+      }
 }
 
 // MARK: - DirectSliderView avec Binding

@@ -309,4 +309,18 @@ class AudioManager: ObservableObject {
             updateCustomReverbSettings(settings)
         }
     }
+    // Dans AudioManager.swift, ajouter une méthode pour les mises à jour live
+
+    func updateCustomReverbLive(_ settings: CustomReverbSettings) {
+        // Mise à jour immédiate sans validation excessive
+        customReverbSettings = settings
+        ReverbPreset.updateCustomSettings(settings)
+        
+        // Application directe si en mode custom et monitoring actif
+        if selectedReverbPreset == .custom && isMonitoringActive {
+            audioEngineService?.updateReverbPreset(preset: .custom)
+            print("🎛️ LIVE UPDATE: Custom reverb applied in real-time")
+        }
+    }
+
 }
