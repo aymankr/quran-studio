@@ -238,14 +238,16 @@ void FDNReverb::DampingFilter::calculateHighpassCoeffs(BiquadFilter& filter, flo
     filter.a2 = (1.0f - alpha) / a0;
 }
 
-// ModulatedDelay Implementation
+// ModulatedDelay Implementation (Anti-Metallic Valhalla-Style)
 FDNReverb::ModulatedDelay::ModulatedDelay(int maxLength)
     : delay_(maxLength)
     , baseDelay_(0.0f)
     , modDepth_(0.0f)
     , modRate_(0.0f)
     , modPhase_(0.0f)
-    , sampleRate_(44100.0) {
+    , phaseOffset_(0.0f)
+    , enabled_(true)
+    , sampleRate_(48000.0) {
 }
 
 void FDNReverb::ModulatedDelay::setBaseDelay(float delaySamples) {
@@ -257,16 +259,33 @@ void FDNReverb::ModulatedDelay::setModulation(float depth, float rate) {
     modRate_ = rate;
 }
 
+void FDNReverb::ModulatedDelay::setPhaseOffset(float phaseRadians) {
+    phaseOffset_ = phaseRadians;
+    modPhase_ = phaseOffset_; // Initialize phase with offset
+}
+
+void FDNReverb::ModulatedDelay::setEnabled(bool enabled) {
+    enabled_ = enabled;
+}
+
 float FDNReverb::ModulatedDelay::process(float input) {
-    // Calculate modulated delay
-    float modulation = modDepth_ * std::sin(modPhase_);
-    float currentDelay = baseDelay_ + modulation;
-    delay_.setDelay(currentDelay);
-    
-    // Update modulation phase
-    modPhase_ += 2.0f * M_PI * modRate_ / sampleRate_;
-    if (modPhase_ > 2.0f * M_PI) {
-        modPhase_ -= 2.0f * M_PI;
+    if (!enabled_ || modDepth_ <= 0.0f) {
+        // No modulation: use fixed delay
+        delay_.setDelay(baseDelay_);
+    } else {
+        // Calculate modulated delay with phase offset for desynchronization
+        float modulation = modDepth_ * std::sin(modPhase_ + phaseOffset_);
+        float currentDelay = baseDelay_ + modulation;
+        
+        // Ensure delay stays within reasonable bounds
+        currentDelay = std::max(1.0f, currentDelay);
+        delay_.setDelay(currentDelay);
+        
+        // Update modulation phase (very slow LFO: 0.1-0.5Hz)
+        modPhase_ += 2.0f * M_PI * modRate_ / sampleRate_;
+        if (modPhase_ > 2.0f * M_PI) {
+            modPhase_ -= 2.0f * M_PI;
+        }
     }
     
     return delay_.process(input);
@@ -274,7 +293,7 @@ float FDNReverb::ModulatedDelay::process(float input) {
 
 void FDNReverb::ModulatedDelay::clear() {
     delay_.clear();
-    modPhase_ = 0.0f;
+    modPhase_ = phaseOffset_; // Reset to initial phase offset
 }
 
 void FDNReverb::ModulatedDelay::updateSampleRate(double sampleRate) {
@@ -294,7 +313,9 @@ FDNReverb::FDNReverb(double sampleRate, int numDelayLines)
     , roomSize_(0.5f)
     , density_(0.7f)
     , highFreqDamping_(0.3f)
-    , lowFreqDamping_(0.2f) {
+    , lowFreqDamping_(0.2f)
+    , modulationEnabled_(true)      // Enable anti-metallic modulation by default
+    , modulationAmount_(1.0f) {     // Full modulation amount by default
     
     // Initialize delay lines
     delayLines_.reserve(numDelayLines_);
@@ -317,9 +338,22 @@ FDNReverb::FDNReverb(double sampleRate, int numDelayLines)
         dampingFilters_.emplace_back(std::make_unique<DampingFilter>(sampleRate_));
     }
     
-    // Initialize modulated delays for chorus effect
+    // Initialize modulated delays for anti-metallic modulation (Valhalla-style)
     for (int i = 0; i < numDelayLines_; ++i) {
-        modulatedDelays_.emplace_back(std::make_unique<ModulatedDelay>(MAX_DELAY_LENGTH / 4));
+        modulatedDelays_.emplace_back(std::make_unique<ModulatedDelay>(MAX_DELAY_LENGTH));
+        
+        // Initialize sample rate for each modulated delay
+        modulatedDelays_[i]->updateSampleRate(sampleRate_);
+        
+        // Set very subtle modulation to eliminate metallic artifacts
+        // Valhalla-style: 0.01-0.05% of delay length, 0.1-0.5Hz LFO
+        float modRate = 0.1f + (i * 0.05f); // 0.1Hz to 0.4Hz spread across lines
+        float modDepth = 2.0f + (i * 0.5f);  // 2-6 samples modulation depth
+        
+        // Desynchronize phases across delay lines for diffuse effect
+        float phaseOffset = (i * 2.0f * M_PI) / numDelayLines_; // Spread phases evenly
+        modulatedDelays_[i]->setModulation(modDepth, modRate);
+        modulatedDelays_[i]->setPhaseOffset(phaseOffset);
     }
     
     // Initialize pre-delay
@@ -364,9 +398,9 @@ void FDNReverb::processMono(const float* input, float* output, int numSamples) {
             diffusedInput = filter->process(diffusedInput);
         }
         
-        // Read from delay lines
+        // Read from modulated delay lines (anti-metallic processing)
         for (int j = 0; j < numDelayLines_; ++j) {
-            delayOutputs_[j] = delayLines_[j]->process(0); // Just read, don't write yet
+            delayOutputs_[j] = modulatedDelays_[j]->process(0); // Just read, don't write yet
         }
         
         // Apply feedback matrix
@@ -380,8 +414,8 @@ void FDNReverb::processMono(const float* input, float* output, int numSamples) {
             // Add input with some diffusion
             float delayInput = diffusedInput * 0.3f + dampedSignal;
             
-            // Store in delay line (this will be read next sample)
-            delayLines_[j]->process(delayInput);
+            // Store in modulated delay line (this will be read next sample)
+            modulatedDelays_[j]->process(delayInput);
             
             // Mix to output
             mixedOutput += dampedSignal;
@@ -429,9 +463,10 @@ void FDNReverb::processStereo(const float* inputL, const float* inputR,
             diffusedL = filter->process(diffusedL);
         }
         
-        // Read from delay lines (left channel processing)
+        // Read from modulated delay lines (anti-metallic processing)
         for (int j = 0; j < numDelayLines_; ++j) {
-            delayOutputs_[j] = delayLines_[j]->process(0);
+            // Use modulated delays for anti-metallic effect
+            delayOutputs_[j] = modulatedDelays_[j]->process(0);
         }
         
         // Apply feedback matrix
@@ -444,9 +479,9 @@ void FDNReverb::processStereo(const float* inputL, const float* inputR,
         for (int j = 0; j < numDelayLines_; ++j) {
             float dampedSignal = dampingFilters_[j]->process(matrixOutputs_[j]);
             
-            // Add diffused input to delay lines
+            // Add diffused input to modulated delay lines
             float delayInput = diffusedL * 0.2f + dampedSignal;
-            delayLines_[j]->process(delayInput);
+            modulatedDelays_[j]->process(delayInput);
             
             // Create stereo image: 
             // Even delays (0,2,4,6) -> Left channel emphasis
@@ -493,7 +528,21 @@ void FDNReverb::setupDelayLengths() {
     calculateDelayLengths(lengths, roomSize_);
     
     for (int i = 0; i < numDelayLines_; ++i) {
+        // Set regular delay lines
         delayLines_[i]->setDelay(static_cast<float>(lengths[i]));
+        
+        // Set modulated delay lines with same base lengths
+        if (i < modulatedDelays_.size()) {
+            modulatedDelays_[i]->setBaseDelay(static_cast<float>(lengths[i]));
+            
+            // Update modulation parameters based on current settings
+            float modRate = 0.1f + (i * 0.05f); // 0.1Hz to 0.4Hz spread
+            float baseDepth = 2.0f + (i * 0.5f); // 2-6 samples base depth
+            float actualDepth = baseDepth * modulationAmount_; // Scale by amount
+            
+            modulatedDelays_[i]->setModulation(actualDepth, modRate);
+            modulatedDelays_[i]->setEnabled(modulationEnabled_);
+        }
     }
 }
 
@@ -777,12 +826,34 @@ void FDNReverb::setLowCutEnabled(bool enabled) {
 }
 
 void FDNReverb::setModulation(float depth, float rate) {
-    for (int i = 0; i < modulatedDelays_.size(); ++i) {
-        // Vary modulation parameters slightly for each delay line
-        float depthVariation = depth * (0.8f + 0.4f * i / numDelayLines_);
-        float rateVariation = rate * (0.9f + 0.2f * i / numDelayLines_);
-        modulatedDelays_[i]->setModulation(depthVariation, rateVariation);
+    // Legacy method for compatibility - now just calls setModulationAmount
+    setModulationAmount(depth / 10.0f); // Convert old scale to new 0-1 scale
+}
+
+void FDNReverb::setModulationEnabled(bool enabled) {
+    modulationEnabled_ = enabled;
+    
+    // Update all modulated delays
+    for (auto& delay : modulatedDelays_) {
+        delay->setEnabled(enabled);
     }
+    
+    printf("Anti-metallic modulation: %s\n", enabled ? "ENABLED" : "DISABLED");
+}
+
+void FDNReverb::setModulationAmount(float amount) {
+    modulationAmount_ = std::clamp(amount, 0.0f, 1.0f);
+    
+    // Update modulation depths for all delay lines
+    for (int i = 0; i < modulatedDelays_.size(); ++i) {
+        float modRate = 0.1f + (i * 0.05f); // 0.1Hz to 0.4Hz spread
+        float baseDepth = 2.0f + (i * 0.5f); // 2-6 samples base depth
+        float actualDepth = baseDepth * modulationAmount_;
+        
+        modulatedDelays_[i]->setModulation(actualDepth, modRate);
+    }
+    
+    printf("Anti-metallic modulation amount: %.1f%%\n", modulationAmount_ * 100.0f);
 }
 
 void FDNReverb::reset() {

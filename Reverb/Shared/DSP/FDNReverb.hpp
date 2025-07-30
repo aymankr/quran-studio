@@ -101,15 +101,22 @@ private:
         void calculateHighpassCoeffs(BiquadFilter& filter, float cutoffHz, float dampingPercent);
     };
     
-    // Modulated delay for chorus-like effects
+    // Modulated delay for anti-metallic artifacts (Valhalla-style)
     class ModulatedDelay {
     public:
         ModulatedDelay(int maxLength);
         void setBaseDelay(float delaySamples);
         void setModulation(float depth, float rate);
+        void setPhaseOffset(float phaseRadians);  // For desynchronized LFOs
+        void setEnabled(bool enabled);            // Enable/disable modulation
         float process(float input);
         void clear();
         void updateSampleRate(double sampleRate);
+        
+        // Getters for current state
+        bool isEnabled() const { return enabled_; }
+        float getModDepth() const { return modDepth_; }
+        float getModRate() const { return modRate_; }
         
     private:
         DelayLine delay_;
@@ -117,6 +124,8 @@ private:
         float modDepth_;
         float modRate_;
         float modPhase_;
+        float phaseOffset_;       // Phase offset for desynchronization
+        bool enabled_;            // Enable/disable modulation
         double sampleRate_;
     };
     
@@ -251,6 +260,10 @@ public:
     void setLowFreqDamping(float damping);  // 0.0 - 1.0 (AD 480 feature)
     void setModulation(float depth, float rate);
     
+    // Anti-metallic modulation control (Valhalla-style)
+    void setModulationEnabled(bool enabled);    // Enable/disable anti-metallic modulation
+    void setModulationAmount(float amount);     // 0.0 = no modulation, 1.0 = full modulation
+    
     // Advanced stereo control (AD 480 style)
     void setCrossFeedAmount(float amount);      // 0.0 = no cross-feed, 1.0 = full mono mix
     void setCrossDelayMs(float delayMs);        // Cross-feed delay in milliseconds (0-50ms)
@@ -318,6 +331,10 @@ private:
     float density_;
     float highFreqDamping_;
     float lowFreqDamping_;
+    
+    // Anti-metallic modulation parameters
+    bool modulationEnabled_;
+    float modulationAmount_;
     
     // FDN matrix and state
     std::vector<std::vector<float>> feedbackMatrix_;
