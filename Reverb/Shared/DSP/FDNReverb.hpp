@@ -111,6 +111,27 @@ private:
         
         void updateDelayLengths(); // Update delay lines when parameters change
     };
+    
+    // Professional stereo spread processor (AD 480 "Spread" control)
+    class StereoSpreadProcessor {
+    public:
+        StereoSpreadProcessor();
+        void processStereo(float* left, float* right, int numSamples);
+        void setStereoWidth(float width);           // 0.0 = mono, 1.0 = natural, 2.0 = wide
+        void setCompensateGain(bool compensate);    // Compensate mid gain for constant volume
+        void clear();
+        
+        // Getters for current state
+        float getStereoWidth() const { return stereoWidth_; }
+        bool isGainCompensated() const { return compensateGain_; }
+        
+    private:
+        float stereoWidth_;        // 0.0 to 2.0 range
+        bool compensateGain_;      // Gain compensation for constant volume
+        
+        // Calculate compensation gain for constant perceived volume
+        float calculateMidGainCompensation(float width) const;
+    };
 
 public:
     FDNReverb(double sampleRate, int numDelayLines = DEFAULT_DELAY_LINES);
@@ -134,8 +155,12 @@ public:
     void setCrossFeedAmount(float amount);      // 0.0 = no cross-feed, 1.0 = full mono mix
     void setCrossDelayMs(float delayMs);        // Cross-feed delay in milliseconds (0-50ms)
     void setPhaseInversion(bool invert);        // L/R phase inversion on cross-feed
-    void setStereoWidth(float width);           // 0.0 = mono, 2.0 = wide stereo
+    void setStereoWidth(float width);           // 0.0 = mono, 2.0 = wide stereo (Cross-feed processor)
     void setCrossFeedBypass(bool bypass);       // Bypass cross-feed processing
+    
+    // Stereo spread control (AD 480 "Spread" - output wet processing)
+    void setStereoSpread(float spread);         // 0.0 = mono wet, 1.0 = natural, 2.0 = wide wet
+    void setStereoSpreadCompensation(bool compensate); // Compensate mid gain for constant volume
     
     // Utility
     void reset();
@@ -162,6 +187,7 @@ private:
     std::vector<std::unique_ptr<DampingFilter>> dampingFilters_;
     std::vector<std::unique_ptr<ModulatedDelay>> modulatedDelays_;
     std::unique_ptr<CrossFeedProcessor> crossFeedProcessor_;
+    std::unique_ptr<StereoSpreadProcessor> stereoSpreadProcessor_;
     
     // Early reflections processing (before FDN)
     std::vector<std::unique_ptr<AllPassFilter>> earlyReflectionFilters_;

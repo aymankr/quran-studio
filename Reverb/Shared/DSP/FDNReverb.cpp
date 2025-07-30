@@ -280,6 +280,9 @@ FDNReverb::FDNReverb(double sampleRate, int numDelayLines)
     // Initialize cross-feed processor for professional stereo processing
     crossFeedProcessor_ = std::make_unique<CrossFeedProcessor>(sampleRate_);
     
+    // Initialize stereo spread processor for output wet control
+    stereoSpreadProcessor_ = std::make_unique<StereoSpreadProcessor>();
+    
     // Initialize state vectors
     delayOutputs_.resize(numDelayLines_);
     matrixOutputs_.resize(numDelayLines_);
@@ -409,6 +412,12 @@ void FDNReverb::processStereo(const float* inputL, const float* inputR,
         float reverbGain = 0.3f;
         outputL[i] = leftOutput * reverbGain;
         outputR[i] = rightOutput * reverbGain;
+    }
+    
+    // STEP 3: Apply stereo spread control to wet output (AD 480 "Spread")
+    // This controls the stereo width of the wet signal only
+    if (stereoSpreadProcessor_) {
+        stereoSpreadProcessor_->processStereo(outputL, outputR, numSamples);
     }
 }
 
@@ -660,6 +669,19 @@ void FDNReverb::setCrossFeedBypass(bool bypass) {
     }
 }
 
+// Stereo spread control methods (AD 480 "Spread" - output wet processing)
+void FDNReverb::setStereoSpread(float spread) {
+    if (stereoSpreadProcessor_) {
+        stereoSpreadProcessor_->setStereoWidth(spread);
+    }
+}
+
+void FDNReverb::setStereoSpreadCompensation(bool compensate) {
+    if (stereoSpreadProcessor_) {
+        stereoSpreadProcessor_->setCompensateGain(compensate);
+    }
+}
+
 void FDNReverb::setModulation(float depth, float rate) {
     for (int i = 0; i < modulatedDelays_.size(); ++i) {
         // Vary modulation parameters slightly for each delay line
@@ -844,6 +866,85 @@ void FDNReverb::CrossFeedProcessor::updateDelayLengths() {
     
     if (crossDelayL_) crossDelayL_->setDelay(delaySamples);
     if (crossDelayR_) crossDelayR_->setDelay(delaySamples);
+}
+
+// Professional StereoSpreadProcessor Implementation (AD 480 "Spread" Control)
+FDNReverb::StereoSpreadProcessor::StereoSpreadProcessor()
+    : stereoWidth_(1.0f)        // Default natural stereo width
+    , compensateGain_(true) {   // Default gain compensation enabled
+    
+    printf("StereoSpreadProcessor initialized: width=%.1f, compensation=%s\n", 
+           stereoWidth_, compensateGain_ ? "ON" : "OFF");
+}
+
+void FDNReverb::StereoSpreadProcessor::processStereo(float* left, float* right, int numSamples) {
+    // AD 480 style Mid/Side processing for stereo width control
+    // This processes the wet reverb output to control its stereo spread
+    
+    for (int i = 0; i < numSamples; ++i) {
+        float l = left[i];
+        float r = right[i];
+        
+        // Convert L/R to Mid/Side
+        float mid = (l + r) * 0.5f;         // Center information (mono sum)
+        float side = (l - r) * 0.5f;        // Stereo difference information
+        
+        // Apply stereo width scaling to Side component
+        // width = 0.0: side = 0 -> mono output (L = R = mid)
+        // width = 1.0: side unchanged -> natural stereo
+        // width = 2.0: side doubled -> exaggerated stereo width
+        float scaledSide = side * stereoWidth_;
+        
+        // Apply mid gain compensation for constant perceived volume
+        float midGain = 1.0f;
+        if (compensateGain_) {
+            midGain = calculateMidGainCompensation(stereoWidth_);
+        }
+        float compensatedMid = mid * midGain;
+        
+        // Convert back to L/R
+        left[i] = compensatedMid + scaledSide;
+        right[i] = compensatedMid - scaledSide;
+    }
+}
+
+void FDNReverb::StereoSpreadProcessor::setStereoWidth(float width) {
+    stereoWidth_ = std::clamp(width, 0.0f, 2.0f);
+    printf("Stereo spread width: %.2f (%.0f%% width)\n", stereoWidth_, stereoWidth_ * 100.0f);
+}
+
+void FDNReverb::StereoSpreadProcessor::setCompensateGain(bool compensate) {
+    compensateGain_ = compensate;
+    printf("Stereo spread gain compensation: %s\n", compensate ? "ON" : "OFF");
+}
+
+void FDNReverb::StereoSpreadProcessor::clear() {
+    // No internal state to clear for Mid/Side processing
+}
+
+float FDNReverb::StereoSpreadProcessor::calculateMidGainCompensation(float width) const {
+    // Calculate compensation gain to maintain constant perceived volume
+    // when adjusting stereo width
+    //
+    // Theory:
+    // - At width=0 (mono): All energy is in Mid, no Side -> need 100% mid
+    // - At width=1 (natural): Mid + Side as recorded -> baseline
+    // - At width=2 (wide): Mid + 2*Side -> louder perception -> compensate mid down
+    //
+    // AD 480 uses approximately this curve for natural perception:
+    // Gain reduces slightly as width increases to compensate for increased Side energy
+    
+    if (width <= 0.0f) {
+        return 1.0f; // Mono: full mid gain
+    } else if (width <= 1.0f) {
+        // Natural range: no compensation needed
+        return 1.0f;
+    } else {
+        // Wide range: reduce mid gain slightly to compensate for louder side
+        // Linear reduction from 1.0 at width=1.0 to ~0.85 at width=2.0
+        float compensation = 1.0f - ((width - 1.0f) * 0.15f);
+        return std::max(compensation, 0.7f); // Minimum 70% to avoid too much reduction
+    }
 }
 
 // Diagnostic and optimization methods for FDNReverb
