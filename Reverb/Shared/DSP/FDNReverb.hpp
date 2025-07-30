@@ -3,11 +3,83 @@
 #include <vector>
 #include <memory>
 #include <cmath>
+#include <atomic>
+#include <functional>
+#include <chrono>
+
+// SIMD optimization headers
+#ifdef __ARM_NEON__
+#include <arm_neon.h>
+#define SIMD_AVAILABLE 1
+#define SIMD_WIDTH 4
+#elif defined(__SSE2__)
+#include <emmintrin.h>
+#include <xmmintrin.h>
+#define SIMD_AVAILABLE 1
+#define SIMD_WIDTH 4
+#else
+#define SIMD_AVAILABLE 0
+#define SIMD_WIDTH 1
+#endif
+
+// Apple Accelerate Framework for additional optimizations
+#ifdef __APPLE__
+#include <Accelerate/Accelerate.h>
+#define VDSP_AVAILABLE 1
+#endif
 
 namespace VoiceMonitor {
 
+/// SIMD Optimizer for high-performance reverb processing
+/// Provides vectorized operations for ARM NEON and x86 SSE
+class SIMDOptimizer {
+public:
+    static constexpr int BLOCK_SIZE = 64;  // Match audio buffer size
+    static constexpr int SIMD_ALIGN = 16;  // Memory alignment for SIMD
+    
+    SIMDOptimizer();
+    
+    // Vectorized biquad filtering (4-8 samples parallel)
+    static void processBiquadBlock(float* input, float* output, int numSamples,
+                                  float b0, float b1, float b2, float a1, float a2,
+                                  float& x1, float& x2, float& y1, float& y2);
+    
+    // Vectorized delay line processing
+    static void processDelayBlock(const float* input, float* output, int numSamples,
+                                 const float* delayBuffer, int bufferSize, 
+                                 float* delayIndices);
+    
+    // Vectorized matrix multiplication for FDN feedback
+    static void matrixMultiplyBlock(const float* input, float* output, 
+                                   const float* matrix, int size);
+    
+    // Block-based coefficient updates (amortized over 64 samples)
+    static void updateCoefficientsIfNeeded(std::atomic<bool>& needsUpdate,
+                                          float* coeffs, const float* newCoeffs,
+                                          int numCoeffs);
+    
+    // Memory-aligned allocation for SIMD operations
+    static void* alignedAlloc(size_t size, size_t alignment = SIMD_ALIGN);
+    static void alignedFree(void* ptr);
+    
+    // Performance monitoring
+    static double measureBlockProcessingTime(std::function<void()> processFunc);
+    
+private:
+    // Platform-specific implementations
+    #if SIMD_AVAILABLE
+    static void processBiquadBlock_SIMD(float* input, float* output, int numSamples,
+                                       float b0, float b1, float b2, float a1, float a2,
+                                       float& x1, float& x2, float& y1, float& y2);
+    #endif
+    
+    static void processBiquadBlock_Scalar(float* input, float* output, int numSamples,
+                                         float b0, float b1, float b2, float a1, float a2,
+                                         float& x1, float& x2, float& y1, float& y2);
+};
+
 /// High-quality FDN (Feedback Delay Network) reverb implementation
-/// Based on professional reverb algorithms similar to AD 480
+/// Based on professional reverb algorithms similar to AD 480 with SIMD optimizations
 class FDNReverb {
 public:
     static constexpr int DEFAULT_DELAY_LINES = 8;
@@ -290,6 +362,11 @@ public:
     void setDiffusionStages(int stages); // Number of all-pass stages
     void setInterpolation(bool enabled) { useInterpolation_ = enabled; }
     
+    // Performance optimization controls
+    void setSIMDEnabled(bool enabled);           // Enable/disable SIMD optimizations
+    double getCPUUsage() const { return lastCpuUsage_; } // Get current CPU usage %
+    void enableBlockOptimizations(bool enabled);  // Block-based coefficient updates
+    
     // Diagnostic and optimization methods
     void printFDNConfiguration() const; // Debug: print current FDN setup
     bool verifyMatrixOrthogonality() const; // Verify feedback matrix properties
@@ -336,6 +413,23 @@ private:
     bool modulationEnabled_;
     float modulationAmount_;
     
+    // Performance optimization variables
+    bool simdEnabled_;                    // Enable SIMD optimizations
+    mutable double lastCpuUsage_;         // CPU usage monitoring
+    std::atomic<bool> coefficientsChanged_; // Flag for coefficient updates
+    
+    // Block processing buffers (SIMD-aligned)
+    alignas(16) float blockBuffer_[SIMDOptimizer::BLOCK_SIZE];
+    alignas(16) float tempSIMDBuffer_[SIMDOptimizer::BLOCK_SIZE * 2];
+    
+    // Coefficient caching for block updates
+    struct CachedCoefficients {
+        std::atomic<bool> needsUpdate{false};
+        alignas(16) float dampingCoeffs[16];  // 2 filters × 8 lines max
+        alignas(16) float toneCoeffs[8];      // 2 filters × 4 coeffs
+        alignas(16) float matrixData[64];     // 8×8 matrix max
+    } cachedCoeffs_;
+    
     // FDN matrix and state
     std::vector<std::vector<float>> feedbackMatrix_;
     std::vector<float> delayOutputs_;
@@ -370,6 +464,12 @@ private:
     float interpolateLinear(const std::vector<float>& buffer, float index, int bufferSize);
     void processMatrix();
     float processEarlyReflections(float input);
+    
+    // Performance optimization helpers
+    void processMatrixSIMD();                    // SIMD-optimized matrix processing
+    void updateCachedCoefficients();             // Update cached coefficients for block processing
+    void processDampingFiltersSIMD(float* buffer, int numSamples); // SIMD damping filters
+    double measureProcessingTime(std::function<void()> func) const; // CPU usage measurement
 };
 
 } // namespace VoiceMonitor
