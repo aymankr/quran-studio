@@ -82,18 +82,34 @@ private:
     // Professional stereo cross-feed processor (AD 480 style)
     class CrossFeedProcessor {
     public:
-        CrossFeedProcessor();
+        CrossFeedProcessor(double sampleRate = 48000.0);
         void processStereo(float* left, float* right, int numSamples);
-        void setCrossFeedAmount(float amount);     // 0.0 = mono, 1.0 = full stereo
-        void setPhaseInversion(bool invert);       // L/R phase inversion
+        void setCrossFeedAmount(float amount);     // 0.0 = no cross-feed, 1.0 = full mono mix
+        void setCrossDelayMs(float delayMs);       // Cross-feed delay in milliseconds (0-50ms)
+        void setPhaseInversion(bool invert);       // L/R phase inversion on cross-feed
         void setStereoWidth(float width);         // 0.0 = mono, 2.0 = wide stereo
+        void setBypass(bool bypass);              // Bypass cross-feed processing
+        void updateSampleRate(double sampleRate);
         void clear();
         
+        // Getters for current state
+        float getCrossFeedAmount() const { return crossFeedAmount_; }
+        float getCrossDelayMs() const { return crossDelayMs_; }
+        bool getPhaseInversion() const { return phaseInvert_; }
+        bool isBypassed() const { return bypass_; }
+        
     private:
-        float crossFeedAmount_;
-        float stereoWidth_;
-        bool phaseInvert_;
-        float delayStateL_, delayStateR_;  // Simple 1-sample delay for phase
+        std::unique_ptr<DelayLine> crossDelayL_;   // L->R cross-feed delay
+        std::unique_ptr<DelayLine> crossDelayR_;   // R->L cross-feed delay
+        
+        float crossFeedAmount_;    // 0.0 to 1.0
+        float crossDelayMs_;       // Delay in milliseconds
+        float stereoWidth_;        // Stereo width control
+        bool phaseInvert_;         // Phase inversion on cross-feed
+        bool bypass_;              // Bypass cross-feed
+        double sampleRate_;        // Sample rate for delay calculation
+        
+        void updateDelayLengths(); // Update delay lines when parameters change
     };
 
 public:
@@ -115,9 +131,11 @@ public:
     void setModulation(float depth, float rate);
     
     // Advanced stereo control (AD 480 style)
-    void setCrossFeedAmount(float amount);
-    void setPhaseInversion(bool invert);
-    void setStereoWidth(float width);
+    void setCrossFeedAmount(float amount);      // 0.0 = no cross-feed, 1.0 = full mono mix
+    void setCrossDelayMs(float delayMs);        // Cross-feed delay in milliseconds (0-50ms)
+    void setPhaseInversion(bool invert);        // L/R phase inversion on cross-feed
+    void setStereoWidth(float width);           // 0.0 = mono, 2.0 = wide stereo
+    void setCrossFeedBypass(bool bypass);       // Bypass cross-feed processing
     
     // Utility
     void reset();
@@ -132,6 +150,10 @@ public:
     void printFDNConfiguration() const; // Debug: print current FDN setup
     bool verifyMatrixOrthogonality() const; // Verify feedback matrix properties
     std::vector<int> getCurrentDelayLengths() const; // Get current delay lengths
+    
+    // RT60 validation methods
+    std::vector<float> generateImpulseResponse(int lengthSamples = 48000 * 4); // 4 seconds at 48kHz
+    float measureRT60FromImpulseResponse(const std::vector<float>& impulseResponse) const;
 
 private:
     // Core components
@@ -185,6 +207,10 @@ private:
     // Buffer management for size changes
     void checkAndFlushBuffers();
     void flushAllBuffers();
+    
+    // AD 480 calibration helpers
+    float calculateAverageDelayTime();
+    float calculateMaxDecayForSize(float roomSize);
     
     // Prime numbers for delay lengths (avoid flutter echoes)
     static const std::vector<int> PRIME_DELAYS;

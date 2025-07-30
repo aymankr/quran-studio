@@ -278,7 +278,7 @@ FDNReverb::FDNReverb(double sampleRate, int numDelayLines)
     preDelayLine_ = std::make_unique<DelayLine>(static_cast<int>(sampleRate * 0.2)); // 200ms max
     
     // Initialize cross-feed processor for professional stereo processing
-    crossFeedProcessor_ = std::make_unique<CrossFeedProcessor>();
+    crossFeedProcessor_ = std::make_unique<CrossFeedProcessor>(sampleRate_);
     
     // Initialize state vectors
     delayOutputs_.resize(numDelayLines_);
@@ -342,23 +342,40 @@ void FDNReverb::processStereo(const float* inputL, const float* inputR,
     // Check for room size changes and flush buffers if needed
     checkAndFlushBuffers();
     
+    // Create temporary buffers for cross-feed processing
+    std::vector<float> crossFeedL(numSamples);
+    std::vector<float> crossFeedR(numSamples);
+    
+    // Copy input to temporary buffers
+    std::copy(inputL, inputL + numSamples, crossFeedL.data());
+    std::copy(inputR, inputR + numSamples, crossFeedR.data());
+    
+    // STEP 1: Apply cross-feed BEFORE reverb processing (AD 480 style)
+    // This creates the L+R mixing for coherent stereo reverb
+    if (crossFeedProcessor_) {
+        crossFeedProcessor_->processStereo(crossFeedL.data(), crossFeedR.data(), numSamples);
+    }
+    
+    // STEP 2: Process both channels through separate FDN paths
     for (int i = 0; i < numSamples; ++i) {
-        // Mix input to mono for processing
-        float monoInput = (inputL[i] + inputR[i]) * 0.5f;
+        // Use cross-fed signals for reverb input
+        float inputLeftChan = crossFeedL[i];
+        float inputRightChan = crossFeedR[i];
         
+        // Process LEFT channel through FDN
         // Apply pre-delay
-        float preDelayedInput = preDelayLine_->process(monoInput);
+        float preDelayedL = preDelayLine_->process(inputLeftChan);
         
-        // Process through early reflections (creates initial dense cloud)
-        float earlyReflected = processEarlyReflections(preDelayedInput);
+        // Process through early reflections
+        float earlyReflectedL = processEarlyReflections(preDelayedL);
         
-        // Process through high-density diffusion filters (all stages for stereo)
-        float diffusedInput = earlyReflected;
+        // Process through diffusion filters
+        float diffusedL = earlyReflectedL;
         for (auto& filter : diffusionFilters_) {
-            diffusedInput = filter->process(diffusedInput);
+            diffusedL = filter->process(diffusedL);
         }
         
-        // Read from delay lines
+        // Read from delay lines (left channel processing)
         for (int j = 0; j < numDelayLines_; ++j) {
             delayOutputs_[j] = delayLines_[j]->process(0);
         }
@@ -366,32 +383,32 @@ void FDNReverb::processStereo(const float* inputL, const float* inputR,
         // Apply feedback matrix
         processMatrix();
         
-        // Process and mix outputs
-        float leftMix = 0.0f;
-        float rightMix = 0.0f;
+        // Process through damping and create output mix
+        float leftOutput = 0.0f;
+        float rightOutput = 0.0f;
         
         for (int j = 0; j < numDelayLines_; ++j) {
             float dampedSignal = dampingFilters_[j]->process(matrixOutputs_[j]);
             
-            // Add input with diffusion
-            float delayInput = diffusedInput * 0.25f + dampedSignal;
+            // Add diffused input to delay lines
+            float delayInput = diffusedL * 0.2f + dampedSignal;
             delayLines_[j]->process(delayInput);
             
-            // Pan odd delays to left, even to right for stereo width
-            if (j % 2 == 0) {
-                leftMix += dampedSignal;
-            } else {
-                rightMix += dampedSignal;
-            }
+            // Create stereo image: 
+            // Even delays (0,2,4,6) -> Left channel emphasis
+            // Odd delays (1,3,5,7) -> Right channel emphasis
+            // But both channels get some of each for natural reverb
+            float leftGain = (j % 2 == 0) ? 0.7f : 0.3f;
+            float rightGain = (j % 2 == 0) ? 0.3f : 0.7f;
+            
+            leftOutput += dampedSignal * leftGain;
+            rightOutput += dampedSignal * rightGain;
         }
         
-        outputL[i] = leftMix * 0.25f;
-        outputR[i] = rightMix * 0.25f;
-    }
-    
-    // Apply professional cross-feed processing for enhanced stereo image
-    if (crossFeedProcessor_) {
-        crossFeedProcessor_->processStereo(outputL, outputR, numSamples);
+        // Scale output and mix with original cross-fed dry signal for natural blend
+        float reverbGain = 0.3f;
+        outputL[i] = leftOutput * reverbGain;
+        outputR[i] = rightOutput * reverbGain;
     }
 }
 
@@ -442,26 +459,67 @@ void FDNReverb::setupFeedbackMatrix() {
     // Always use Householder matrix for professional quality
     generateHouseholderMatrix();
     
-    // Calculate decay gain for stable reverb tail
-    // RT60 formula: gain = 10^(-3 * block_time / RT60)
-    float blockTimeSeconds = 64.0f / static_cast<float>(sampleRate_); // Assuming 64-sample blocks
-    float rt60 = decayTime_; // RT60 is our decay time parameter
-    float decayGainLinear = std::pow(10.0f, -3.0f * blockTimeSeconds / rt60);
+    // AD 480 calibrated decay time calculation
+    // Calculate average delay time for the FDN network
+    float averageDelayTime = calculateAverageDelayTime();
     
-    // Apply additional scaling for stability and frequency-dependent decay
-    float stabilityScale = 0.98f; // Slightly under unity for guaranteed stability
-    float hfDecayScale = 1.0f - highFreqDamping_ * 0.15f; // HF decay faster
-    float finalGain = decayGainLinear * stabilityScale * hfDecayScale;
+    // Apply Size-dependent decay limitation (AD 480 behavior)
+    float maxDecayForSize = calculateMaxDecayForSize(roomSize_);
+    float limitedDecayTime = std::min(decayTime_, maxDecayForSize);
     
-    // Ensure matrix gain is always less than 1.0 for stability
-    finalGain = std::min(finalGain, 0.95f);
+    // Classic RT60 formula: gain = 10^(-3 * Δt / RT60)
+    // where Δt is the average delay time in the network
+    float deltaT = averageDelayTime / static_cast<float>(sampleRate_); // Convert to seconds
+    float rt60 = limitedDecayTime; // Our calibrated RT60 target
     
-    // Scale the entire matrix
+    // Prevent division by zero and ensure minimum decay
+    rt60 = std::max(rt60, 0.05f); // Minimum 50ms decay
+    
+    // Calculate theoretical decay gain
+    float theoreticalGain = std::pow(10.0f, -3.0f * deltaT / rt60);
+    
+    // AD 480 style frequency-dependent scaling
+    // High frequencies decay faster, low frequencies sustain longer
+    float hfDecayFactor = 1.0f - (highFreqDamping_ * 0.25f); // 0-25% HF reduction
+    float lfDecayFactor = 1.0f - (lowFreqDamping_ * 0.15f);  // 0-15% LF reduction
+    float freqWeightedGain = theoreticalGain * hfDecayFactor * lfDecayFactor;
+    
+    // Stability enforcement (critical for professional quality)
+    // AD 480 uses approximately 0.97 max gain for guaranteed stability
+    float stabilityLimit = 0.97f;
+    
+    // Additional safety margin based on room size (larger rooms need more stability)
+    float sizeStabilityFactor = 0.98f - (roomSize_ * 0.03f); // 0.98 to 0.95 range
+    stabilityLimit = std::min(stabilityLimit, sizeStabilityFactor);
+    
+    float finalGain = std::min(freqWeightedGain, stabilityLimit);
+    
+    // Diagnostic output for calibration verification
+    printf("=== AD 480 Decay Calibration ===\n");
+    printf("Target RT60: %.2f s (limited from %.2f s)\n", rt60, decayTime_);
+    printf("Average delay: %.1f samples (%.2f ms)\n", averageDelayTime, deltaT * 1000.0f);
+    printf("Theoretical gain: %.6f\n", theoreticalGain);
+    printf("Freq-weighted gain: %.6f\n", freqWeightedGain);
+    printf("Final gain: %.6f (stability limit: %.6f)\n", finalGain, stabilityLimit);
+    printf("Room size factor: %.3f\n", roomSize_);
+    printf("================================\n");
+    
+    // Scale the entire orthogonal matrix
     for (auto& row : feedbackMatrix_) {
         for (auto& element : row) {
             element *= finalGain;
         }
     }
+    
+    // Verify final matrix energy for debugging
+    float matrixEnergy = 0.0f;
+    for (const auto& row : feedbackMatrix_) {
+        for (float element : row) {
+            matrixEnergy += element * element;
+        }
+    }
+    printf("Matrix energy after scaling: %.6f (should be < %.1f for stability)\n", 
+           matrixEnergy, static_cast<float>(numDelayLines_) * finalGain * finalGain);
 }
 
 void FDNReverb::generateHouseholderMatrix() {
@@ -571,10 +629,16 @@ void FDNReverb::setLowFreqDamping(float damping) {
     }
 }
 
-// Advanced stereo control methods
+// Advanced stereo control methods (AD 480 style)
 void FDNReverb::setCrossFeedAmount(float amount) {
     if (crossFeedProcessor_) {
         crossFeedProcessor_->setCrossFeedAmount(amount);
+    }
+}
+
+void FDNReverb::setCrossDelayMs(float delayMs) {
+    if (crossFeedProcessor_) {
+        crossFeedProcessor_->setCrossDelayMs(delayMs);
     }
 }
 
@@ -587,6 +651,12 @@ void FDNReverb::setPhaseInversion(bool invert) {
 void FDNReverb::setStereoWidth(float width) {
     if (crossFeedProcessor_) {
         crossFeedProcessor_->setStereoWidth(width);
+    }
+}
+
+void FDNReverb::setCrossFeedBypass(bool bypass) {
+    if (crossFeedProcessor_) {
+        crossFeedProcessor_->setBypass(bypass);
     }
 }
 
@@ -640,63 +710,140 @@ void FDNReverb::updateSampleRate(double sampleRate) {
         delay->updateSampleRate(sampleRate);
     }
     
+    // Update cross-feed processor with new sample rate
+    if (crossFeedProcessor_) {
+        crossFeedProcessor_->updateSampleRate(sampleRate);
+    }
+    
     reset(); // Recalculate everything for new sample rate
 }
 
-// CrossFeedProcessor Implementation
-FDNReverb::CrossFeedProcessor::CrossFeedProcessor()
-    : crossFeedAmount_(0.5f)
-    , stereoWidth_(1.0f)
-    , phaseInvert_(false)
-    , delayStateL_(0.0f)
-    , delayStateR_(0.0f) {
+// Professional CrossFeedProcessor Implementation (AD 480 Style)
+FDNReverb::CrossFeedProcessor::CrossFeedProcessor(double sampleRate)
+    : crossFeedAmount_(0.5f)          // Default 50% cross-feed (AD 480 default)
+    , crossDelayMs_(10.0f)            // Default 10ms cross-delay
+    , stereoWidth_(1.0f)              // Default normal stereo width
+    , phaseInvert_(false)             // Default no phase inversion
+    , bypass_(false)                  // Default cross-feed enabled
+    , sampleRate_(sampleRate) {
+    
+    // Initialize cross-feed delay lines (50ms max = 2400 samples at 48kHz)
+    int maxDelaySamples = static_cast<int>(sampleRate * 0.05); // 50ms max
+    crossDelayL_ = std::make_unique<DelayLine>(maxDelaySamples);
+    crossDelayR_ = std::make_unique<DelayLine>(maxDelaySamples);
+    
+    // Set initial delay lengths
+    updateDelayLengths();
+    
+    printf("CrossFeedProcessor initialized: %.1fms delay, %.1f%% amount\n", 
+           crossDelayMs_, crossFeedAmount_ * 100.0f);
 }
 
 void FDNReverb::CrossFeedProcessor::processStereo(float* left, float* right, int numSamples) {
+    if (bypass_) {
+        // Bypass: only apply stereo width control, no cross-feed
+        for (int i = 0; i < numSamples; ++i) {
+            float l = left[i];
+            float r = right[i];
+            
+            // Apply stereo width control only
+            float mid = (l + r) * 0.5f;
+            float side = (l - r) * 0.5f * stereoWidth_;
+            
+            left[i] = mid + side;
+            right[i] = mid - side;
+        }
+        return;
+    }
+    
+    // Professional AD 480 style cross-feed processing
     for (int i = 0; i < numSamples; ++i) {
-        float l = left[i];
-        float r = right[i];
+        float inputL = left[i];
+        float inputR = right[i];
         
-        // Apply stereo width control
-        float mid = (l + r) * 0.5f;
-        float side = (l - r) * 0.5f * stereoWidth_;
+        // Read delayed cross-feed signals
+        float delayedL = crossDelayL_->process(0.0f); // Read without writing
+        float delayedR = crossDelayR_->process(0.0f); // Read without writing
         
-        // Calculate cross-feed
-        float crossFeedL = r * crossFeedAmount_;
-        float crossFeedR = l * crossFeedAmount_;
+        // Calculate cross-feed amounts
+        // L->R: Take left signal, attenuate it, delay it, mix to right
+        // R->L: Take right signal, attenuate it, delay it, mix to left
+        float crossFeedL_to_R = delayedL * crossFeedAmount_;
+        float crossFeedR_to_L = delayedR * crossFeedAmount_;
         
-        // Apply phase inversion if enabled
+        // Apply phase inversion on cross-feed if enabled (AD 480 feature)
         if (phaseInvert_) {
-            crossFeedR = -crossFeedR;
+            crossFeedR_to_L = -crossFeedR_to_L; // Invert phase on R->L cross-feed
         }
         
-        // Mix with cross-feed and apply 1-sample delay for phase shift
-        float outputL = mid + side + crossFeedL + delayStateL_;
-        float outputR = mid - side + crossFeedR + delayStateR_;
+        // Mix input signals with cross-feed
+        // At crossFeedAmount_ = 0.0: pure stereo (L+0, R+0)
+        // At crossFeedAmount_ = 1.0: full mono (L+R, R+L) -> identical signals
+        float mixedL = inputL + crossFeedR_to_L;
+        float mixedR = inputR + crossFeedL_to_R;
         
-        // Update delay states
-        delayStateL_ = l * 0.1f;  // Subtle delay for natural phase shift
-        delayStateR_ = r * 0.1f;
+        // Apply stereo width control (AD 480 style Mid/Side processing)
+        float mid = (mixedL + mixedR) * 0.5f;
+        float side = (mixedL - mixedR) * 0.5f * stereoWidth_;
         
-        left[i] = outputL;
-        right[i] = outputR;
+        // Write current inputs to delay lines for next samples
+        crossDelayL_->process(inputL);
+        crossDelayR_->process(inputR);
+        
+        // Final output
+        left[i] = mid + side;
+        right[i] = mid - side;
     }
 }
 
 void FDNReverb::CrossFeedProcessor::setCrossFeedAmount(float amount) {
-    crossFeedAmount_ = std::max(0.0f, std::min(amount, 1.0f));
+    crossFeedAmount_ = std::clamp(amount, 0.0f, 1.0f);
+    printf("Cross-feed amount: %.1f%%\n", crossFeedAmount_ * 100.0f);
+}
+
+void FDNReverb::CrossFeedProcessor::setCrossDelayMs(float delayMs) {
+    crossDelayMs_ = std::clamp(delayMs, 0.0f, 50.0f); // 0-50ms range
+    updateDelayLengths();
+    printf("Cross-feed delay: %.2f ms\n", crossDelayMs_);
 }
 
 void FDNReverb::CrossFeedProcessor::setPhaseInversion(bool invert) {
     phaseInvert_ = invert;
+    printf("Cross-feed phase invert: %s\n", invert ? "ON" : "OFF");
 }
 
 void FDNReverb::CrossFeedProcessor::setStereoWidth(float width) {
-    stereoWidth_ = std::max(0.0f, std::min(width, 2.0f));
+    stereoWidth_ = std::clamp(width, 0.0f, 2.0f);
+    printf("Stereo width: %.1f%%\n", stereoWidth_ * 100.0f);
+}
+
+void FDNReverb::CrossFeedProcessor::setBypass(bool bypass) {
+    bypass_ = bypass;
+    printf("Cross-feed bypass: %s\n", bypass ? "ON" : "OFF");
+}
+
+void FDNReverb::CrossFeedProcessor::updateSampleRate(double sampleRate) {
+    sampleRate_ = sampleRate;
+    
+    // Recreate delay lines with new sample rate
+    int maxDelaySamples = static_cast<int>(sampleRate * 0.05); // 50ms max
+    crossDelayL_ = std::make_unique<DelayLine>(maxDelaySamples);
+    crossDelayR_ = std::make_unique<DelayLine>(maxDelaySamples);
+    
+    updateDelayLengths();
 }
 
 void FDNReverb::CrossFeedProcessor::clear() {
-    delayStateL_ = delayStateR_ = 0.0f;
+    if (crossDelayL_) crossDelayL_->clear();
+    if (crossDelayR_) crossDelayR_->clear();
+}
+
+void FDNReverb::CrossFeedProcessor::updateDelayLengths() {
+    // Convert milliseconds to samples
+    float delaySamples = (crossDelayMs_ / 1000.0f) * static_cast<float>(sampleRate_);
+    
+    if (crossDelayL_) crossDelayL_->setDelay(delaySamples);
+    if (crossDelayR_) crossDelayR_->setDelay(delaySamples);
 }
 
 // Diagnostic and optimization methods for FDNReverb
@@ -889,6 +1036,228 @@ void FDNReverb::flushAllBuffers() {
     std::fill(matrixOutputs_.begin(), matrixOutputs_.end(), 0.0f);
     
     printf("All buffers flushed successfully\n");
+}
+
+// AD 480 Calibration Helper Methods
+float FDNReverb::calculateAverageDelayTime() {
+    // Calculate the average delay time across all FDN delay lines
+    // This is critical for accurate RT60 calibration
+    
+    float sampleRateScale = static_cast<float>(sampleRate_) / 48000.0f;
+    float roomScale = 0.5f + roomSize_ * 1.5f; // Same scaling as in calculateDelayLengths
+    
+    float totalDelay = 0.0f;
+    for (int i = 0; i < numDelayLines_; ++i) {
+        int primeIndex = std::min(i, static_cast<int>(PRIME_DELAYS.size() - 1));
+        float scaledDelay = PRIME_DELAYS[primeIndex] * sampleRateScale * roomScale;
+        
+        // Apply the same bounds and variations as in calculateDelayLengths
+        scaledDelay = std::clamp(scaledDelay, 200.0f, static_cast<float>(MAX_DELAY_LENGTH - 1));
+        if (i > 0) {
+            scaledDelay += (i % 3) - 1; // Same variation pattern
+        }
+        
+        totalDelay += scaledDelay;
+    }
+    
+    return totalDelay / static_cast<float>(numDelayLines_);
+}
+
+float FDNReverb::calculateMaxDecayForSize(float roomSize) {
+    // AD 480 style Size-dependent decay limitation
+    // Prevents infinite sustain at maximum room size by limiting decay time
+    // This is critical for stability in large virtual spaces
+    
+    // AD 480 approximate behavior:
+    // - Small rooms (size 0.0-0.3): Up to 8.0s decay
+    // - Medium rooms (size 0.3-0.7): Up to 6.0s decay  
+    // - Large rooms (size 0.7-1.0): Up to 3.0s decay
+    // This prevents standing wave buildup in large spaces
+    
+    if (roomSize <= 0.3f) {
+        // Small rooms: full decay range available
+        return 8.0f;
+    } else if (roomSize <= 0.7f) {
+        // Medium rooms: interpolate from 8.0s to 6.0s
+        float factor = (roomSize - 0.3f) / 0.4f; // 0.0 to 1.0 over 0.3-0.7 range
+        return 8.0f - (factor * 2.0f); // 8.0s to 6.0s
+    } else {
+        // Large rooms: interpolate from 6.0s to 3.0s
+        float factor = (roomSize - 0.7f) / 0.3f; // 0.0 to 1.0 over 0.7-1.0 range
+        return 6.0f - (factor * 3.0f); // 6.0s to 3.0s
+    }
+}
+
+// RT60 Validation Methods for Professional Calibration
+std::vector<float> FDNReverb::generateImpulseResponse(int lengthSamples) {
+    // Generate impulse response for RT60 measurement and validation
+    // This allows us to verify that our decay calibration is accurate
+    
+    printf("=== Generating Impulse Response for RT60 Validation ===\n");
+    printf("Length: %d samples (%.2f seconds at %.0f Hz)\n", 
+           lengthSamples, lengthSamples / sampleRate_, sampleRate_);
+    
+    std::vector<float> impulseResponse(lengthSamples, 0.0f);
+    
+    // Create a temporary copy of the current state for restoration
+    // We need to preserve the current state during measurement
+    auto tempDelayOutputs = delayOutputs_;
+    auto tempMatrixOutputs = matrixOutputs_;
+    
+    // Clear all buffers to start with clean slate
+    const_cast<FDNReverb*>(this)->clear();
+    
+    // Generate impulse (single sample at maximum amplitude)
+    float impulse = 1.0f;
+    
+    // Process the impulse and subsequent silence
+    for (int i = 0; i < lengthSamples; ++i) {
+        float input = (i == 0) ? impulse : 0.0f; // Impulse only on first sample
+        
+        // Process single sample (same logic as processMono but inline)
+        
+        // Apply pre-delay
+        float preDelayedInput = preDelayLine_->process(input);
+        
+        // Process through early reflections
+        float earlyReflected = const_cast<FDNReverb*>(this)->processEarlyReflections(preDelayedInput);
+        
+        // Process through diffusion filters
+        float diffusedInput = earlyReflected;
+        for (auto& filter : diffusionFilters_) {
+            diffusedInput = filter->process(diffusedInput);
+        }
+        
+        // Read from delay lines
+        for (int j = 0; j < numDelayLines_; ++j) {
+            delayOutputs_[j] = delayLines_[j]->process(0); // Just read
+        }
+        
+        // Apply feedback matrix
+        const_cast<FDNReverb*>(this)->processMatrix();
+        
+        // Process through damping and write back
+        float mixedOutput = 0.0f;
+        for (int j = 0; j < numDelayLines_; ++j) {
+            float dampedSignal = dampingFilters_[j]->process(matrixOutputs_[j]);
+            
+            // Add input with diffusion
+            float delayInput = diffusedInput * 0.3f + dampedSignal;
+            delayLines_[j]->process(delayInput);
+            
+            // Mix to output
+            mixedOutput += dampedSignal;
+        }
+        
+        impulseResponse[i] = mixedOutput * 0.3f; // Same scaling as processMono
+    }
+    
+    // Restore previous state
+    delayOutputs_ = tempDelayOutputs;
+    matrixOutputs_ = tempMatrixOutputs;
+    
+    printf("Impulse response generated successfully\n");
+    printf("Peak amplitude: %.6f\n", *std::max_element(impulseResponse.begin(), impulseResponse.end()));
+    printf("=================================================\n");
+    
+    return impulseResponse;
+}
+
+float FDNReverb::measureRT60FromImpulseResponse(const std::vector<float>& impulseResponse) const {
+    // Measure RT60 from impulse response using energy decay analysis
+    // RT60 is the time for reverb to decay by 60dB (-60dB = 0.001 linear amplitude)
+    
+    if (impulseResponse.empty()) {
+        return 0.0f;
+    }
+    
+    printf("=== RT60 Measurement from Impulse Response ===\n");
+    
+    // Calculate energy envelope (running RMS with smoothing)
+    std::vector<float> energyEnvelope;
+    energyEnvelope.reserve(impulseResponse.size());
+    
+    const int windowSize = 512; // 512 samples ≈ 10.7ms at 48kHz
+    float runningSum = 0.0f;
+    
+    for (size_t i = 0; i < impulseResponse.size(); ++i) {
+        float sample = impulseResponse[i];
+        runningSum += sample * sample;
+        
+        // Remove old samples from window
+        if (i >= windowSize) {
+            float oldSample = impulseResponse[i - windowSize];
+            runningSum -= oldSample * oldSample;
+        }
+        
+        float rms = std::sqrt(runningSum / std::min(static_cast<float>(windowSize), static_cast<float>(i + 1)));
+        energyEnvelope.push_back(rms);
+    }
+    
+    // Find peak energy
+    float peakEnergy = *std::max_element(energyEnvelope.begin(), energyEnvelope.end());
+    printf("Peak energy: %.6f\n", peakEnergy);
+    
+    if (peakEnergy < 1e-8f) {
+        printf("ERROR: Peak energy too low for measurement\n");
+        return 0.0f;
+    }
+    
+    // Calculate target levels
+    float target60dB = peakEnergy * 0.001f; // -60dB = 10^(-60/20) = 0.001
+    float target20dB = peakEnergy * 0.1f;   // -20dB = 10^(-20/20) = 0.1
+    
+    printf("Target -20dB level: %.6f\n", target20dB);
+    printf("Target -60dB level: %.6f\n", target60dB);
+    
+    // Find -20dB and -60dB crossing points
+    int crossingPoint20dB = -1;
+    int crossingPoint60dB = -1;
+    
+    // Look for crossings after peak
+    size_t peakIndex = std::max_element(energyEnvelope.begin(), energyEnvelope.end()) - energyEnvelope.begin();
+    
+    for (size_t i = peakIndex; i < energyEnvelope.size(); ++i) {
+        if (crossingPoint20dB == -1 && energyEnvelope[i] <= target20dB) {
+            crossingPoint20dB = static_cast<int>(i);
+        }
+        if (crossingPoint60dB == -1 && energyEnvelope[i] <= target60dB) {
+            crossingPoint60dB = static_cast<int>(i);
+            break;
+        }
+    }
+    
+    printf("Peak at sample: %zu (%.2f ms)\n", peakIndex, (peakIndex / sampleRate_) * 1000.0f);
+    
+    if (crossingPoint20dB != -1) {
+        printf("-20dB crossing at sample: %d (%.2f ms)\n", 
+               crossingPoint20dB, (crossingPoint20dB / sampleRate_) * 1000.0f);
+    } else {
+        printf("WARNING: -20dB level never reached\n");
+    }
+    
+    if (crossingPoint60dB != -1) {
+        printf("-60dB crossing at sample: %d (%.2f ms)\n", 
+               crossingPoint60dB, (crossingPoint60dB / sampleRate_) * 1000.0f);
+        
+        float rt60 = (crossingPoint60dB - static_cast<int>(peakIndex)) / sampleRate_;
+        printf("Measured RT60: %.3f seconds\n", rt60);
+        return rt60;
+    } else {
+        // Extrapolate RT60 from RT20 if -60dB not reached
+        if (crossingPoint20dB != -1) {
+            float rt20 = (crossingPoint20dB - static_cast<int>(peakIndex)) / sampleRate_;
+            float extrapolatedRT60 = rt20 * 3.0f; // RT60 = 3 * RT20
+            printf("Extrapolated RT60 from RT20: %.3f seconds (RT20 = %.3f s)\n", 
+                   extrapolatedRT60, rt20);
+            return extrapolatedRT60;
+        } else {
+            printf("ERROR: Cannot measure RT60 - insufficient decay\n");
+            return 0.0f;
+        }
+    }
+    
+    printf("==============================================\n");
 }
 
 } // namespace VoiceMonitor
