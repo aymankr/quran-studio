@@ -4,7 +4,7 @@ import SwiftUI
 struct ReverbApp: App {
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            ContentViewCPP()
         }
         #if os(macOS)
         .windowStyle(HiddenTitleBarWindowStyle())

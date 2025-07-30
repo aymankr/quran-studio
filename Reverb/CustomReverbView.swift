@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct CustomReverbView: View {
-    @ObservedObject var audioManager: AudioManager
+    @ObservedObject var audioManager: AudioManagerCPP
     @Environment(\.presentationMode) var presentationMode
     @State private var showingResetAlert = false
     
@@ -30,7 +30,7 @@ struct CustomReverbView: View {
                         .foregroundColor(.white)
                         .padding(.top, 15)
                     // NOUVEAU: Indicateur de monitoring live
-                   if audioManager.isMonitoring && audioManager.selectedReverbPreset == .custom {
+                   if audioManager.isMonitoring && audioManager.selectedReverbPreset == ReverbPreset.custom {
                        HStack {
                            Circle()
                                .fill(Color.green)
@@ -124,7 +124,7 @@ struct CustomReverbView: View {
                                 Toggle("Activer", isOn: $hasCrossFeed)
                                     .toggleStyle(SwitchToggleStyle(tint: sliderColor))
                                     .foregroundColor(.white)
-                                    .onChange(of: hasCrossFeed) { _ in
+                                    .onChange(of: hasCrossFeed) { _, _ in
                                         updateCustomReverb()
                                     }
                                 
@@ -230,8 +230,8 @@ struct CustomReverbView: View {
             loadCurrentSettings()
             
             // S'assurer que nous sommes en mode personnalisé
-            if audioManager.selectedReverbPreset != .custom {
-                audioManager.updateReverbPreset(.custom)
+            if audioManager.selectedReverbPreset != ReverbPreset.custom {
+                audioManager.updateReverbPreset(ReverbPreset.custom)
             }
         }
     }
@@ -270,13 +270,13 @@ struct CustomReverbView: View {
         ReverbPreset.updateCustomSettings(customSettings)
         
         // AMÉLIORATION: Appliquer immédiatement si en mode custom
-        if audioManager.selectedReverbPreset == .custom {
+        if audioManager.selectedReverbPreset == ReverbPreset.custom {
             // Force la mise à jour en temps réel
             DispatchQueue.main.async {
-                self.audioManager.updateReverbPreset(.custom)
+                self.audioManager.updateReverbPreset(ReverbPreset.custom)
                 
-                // Mettre à jour le cross-feed si disponible
-                self.audioEngineService?.updateCrossFeed(enabled: self.hasCrossFeed, value: self.crossFeed)
+                // Cross-feed update simplified for ultra-simple approach
+                // self.audioEngineService?.updateCrossFeed(enabled: self.hasCrossFeed, value: self.crossFeed)
             }
         }
         
@@ -304,10 +304,10 @@ struct CustomReverbView: View {
         updateCustomReverb()
     }
     
-    /// Référence à l'AudioEngineService
-    private var audioEngineService: AudioEngineService? {
-        return audioManager.audioEngineService
-    }
+    /// Référence à l'AudioEngineService - désactivé pour l'approche ultra-simple
+    // private var audioEngineService: AudioEngineService? {
+    //     return audioManager.audioEngineService
+    // }
 }
 
 // MARK: - DirectSlider avec Binding
@@ -348,7 +348,7 @@ struct DirectSlider: View {
                   }
               }
           )
-          .onChange(of: value) { newValue in
+          .onChange(of: value) { _, newValue in
               // AMÉLIORATION: Application plus fluide pendant l'édition
               if isEditingNow {
                   let now = Date()
@@ -429,7 +429,7 @@ struct DirectSliderView: View {
 
 struct CustomReverbView_Previews: PreviewProvider {
     static var previews: some View {
-        CustomReverbView(audioManager: AudioManager.shared)
-            .preferredColorScheme(.dark)
+        CustomReverbView(audioManager: AudioManagerCPP.shared)
+            .preferredColorScheme(ColorScheme.dark)
     }
 }

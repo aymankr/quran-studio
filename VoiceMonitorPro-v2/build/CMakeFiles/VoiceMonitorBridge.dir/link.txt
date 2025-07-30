@@ -1,0 +1,2 @@
+/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ar qc libVoiceMonitorBridge.a CMakeFiles/VoiceMonitorBridge.dir/iOS/AudioBridge/ReverbBridge.mm.o CMakeFiles/VoiceMonitorBridge.dir/iOS/AudioBridge/AudioIOBridge.mm.o
+/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ranlib libVoiceMonitorBridge.a

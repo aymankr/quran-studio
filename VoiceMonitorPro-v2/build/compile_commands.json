@@ -1,0 +1,50 @@
+[
+{
+  "directory": "/Users/a/Desktop/projects/Reverb/VoiceMonitorPro-v2/build",
+  "command": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++ -DUSE_ARM64=1 -DVM_VERSION_MAJOR=2 -DVM_VERSION_MINOR=0 -I/Users/a/Desktop/projects/Reverb/VoiceMonitorPro-v2/Shared/DSP -I/Users/a/Desktop/projects/Reverb/VoiceMonitorPro-v2/Shared/Utils -F/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.5.sdk/System/Library/Frameworks -std=c++14 -fno-exceptions -fno-rtti -O3 -ffast-math -O3 -DNDEBUG -std=gnu++17 -arch arm64 -arch x86_64 -Xarch_arm64 -isysroot/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.5.sdk -Xarch_x86_64 -isysroot/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator18.5.sdk -miphoneos-version-min=14.0 -o CMakeFiles/VoiceMonitorDSP.dir/Shared/DSP/ReverbEngine.cpp.o -c /Users/a/Desktop/projects/Reverb/VoiceMonitorPro-v2/Shared/DSP/ReverbEngine.cpp",
+  "file": "/Users/a/Desktop/projects/Reverb/VoiceMonitorPro-v2/Shared/DSP/ReverbEngine.cpp",
+  "output": "CMakeFiles/VoiceMonitorDSP.dir/Shared/DSP/ReverbEngine.cpp.o"
+},
+{
+  "directory": "/Users/a/Desktop/projects/Reverb/VoiceMonitorPro-v2/build",
+  "command": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++ -DUSE_ARM64=1 -DVM_VERSION_MAJOR=2 -DVM_VERSION_MINOR=0 -I/Users/a/Desktop/projects/Reverb/VoiceMonitorPro-v2/Shared/DSP -I/Users/a/Desktop/projects/Reverb/VoiceMonitorPro-v2/Shared/Utils -F/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.5.sdk/System/Library/Frameworks -std=c++14 -fno-exceptions -fno-rtti -O3 -ffast-math -O3 -DNDEBUG -std=gnu++17 -arch arm64 -arch x86_64 -Xarch_arm64 -isysroot/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.5.sdk -Xarch_x86_64 -isysroot/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator18.5.sdk -miphoneos-version-min=14.0 -o CMakeFiles/VoiceMonitorDSP.dir/Shared/DSP/AudioBuffer.cpp.o -c /Users/a/Desktop/projects/Reverb/VoiceMonitorPro-v2/Shared/DSP/AudioBuffer.cpp",
+  "file": "/Users/a/Desktop/projects/Reverb/VoiceMonitorPro-v2/Shared/DSP/AudioBuffer.cpp",
+  "output": "CMakeFiles/VoiceMonitorDSP.dir/Shared/DSP/AudioBuffer.cpp.o"
+},
+{
+  "directory": "/Users/a/Desktop/projects/Reverb/VoiceMonitorPro-v2/build",
+  "command": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++ -DUSE_ARM64=1 -DVM_VERSION_MAJOR=2 -DVM_VERSION_MINOR=0 -I/Users/a/Desktop/projects/Reverb/VoiceMonitorPro-v2/Shared/DSP -I/Users/a/Desktop/projects/Reverb/VoiceMonitorPro-v2/Shared/Utils -F/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.5.sdk/System/Library/Frameworks -std=c++14 -fno-exceptions -fno-rtti -O3 -ffast-math -O3 -DNDEBUG -std=gnu++17 -arch arm64 -arch x86_64 -Xarch_arm64 -isysroot/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.5.sdk -Xarch_x86_64 -isysroot/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator18.5.sdk -miphoneos-version-min=14.0 -o CMakeFiles/VoiceMonitorDSP.dir/Shared/DSP/Parameters.cpp.o -c /Users/a/Desktop/projects/Reverb/VoiceMonitorPro-v2/Shared/DSP/Parameters.cpp",
+  "file": "/Users/a/Desktop/projects/Reverb/VoiceMonitorPro-v2/Shared/DSP/Parameters.cpp",
+  "output": "CMakeFiles/VoiceMonitorDSP.dir/Shared/DSP/Parameters.cpp.o"
+},
+{
+  "directory": "/Users/a/Desktop/projects/Reverb/VoiceMonitorPro-v2/build",
+  "command": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++ -DUSE_ARM64=1 -DVM_VERSION_MAJOR=2 -DVM_VERSION_MINOR=0 -I/Users/a/Desktop/projects/Reverb/VoiceMonitorPro-v2/Shared/DSP -I/Users/a/Desktop/projects/Reverb/VoiceMonitorPro-v2/Shared/Utils -F/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.5.sdk/System/Library/Frameworks -std=c++14 -fno-exceptions -fno-rtti -O3 -ffast-math -O3 -DNDEBUG -std=gnu++17 -arch arm64 -arch x86_64 -Xarch_arm64 -isysroot/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.5.sdk -Xarch_x86_64 -isysroot/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator18.5.sdk -miphoneos-version-min=14.0 -o CMakeFiles/VoiceMonitorDSP.dir/Shared/DSP/CrossFeed.cpp.o -c /Users/a/Desktop/projects/Reverb/VoiceMonitorPro-v2/Shared/DSP/CrossFeed.cpp",
+  "file": "/Users/a/Desktop/projects/Reverb/VoiceMonitorPro-v2/Shared/DSP/CrossFeed.cpp",
+  "output": "CMakeFiles/VoiceMonitorDSP.dir/Shared/DSP/CrossFeed.cpp.o"
+},
+{
+  "directory": "/Users/a/Desktop/projects/Reverb/VoiceMonitorPro-v2/build",
+  "command": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++ -DUSE_ARM64=1 -DVM_VERSION_MAJOR=2 -DVM_VERSION_MINOR=0 -I/Users/a/Desktop/projects/Reverb/VoiceMonitorPro-v2/Shared/DSP -I/Users/a/Desktop/projects/Reverb/VoiceMonitorPro-v2/Shared/Utils -F/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.5.sdk/System/Library/Frameworks -std=c++14 -fno-exceptions -fno-rtti -O3 -ffast-math -O3 -DNDEBUG -std=gnu++17 -arch arm64 -arch x86_64 -Xarch_arm64 -isysroot/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.5.sdk -Xarch_x86_64 -isysroot/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator18.5.sdk -miphoneos-version-min=14.0 -o CMakeFiles/VoiceMonitorDSP.dir/Shared/DSP/FDNReverb.cpp.o -c /Users/a/Desktop/projects/Reverb/VoiceMonitorPro-v2/Shared/DSP/FDNReverb.cpp",
+  "file": "/Users/a/Desktop/projects/Reverb/VoiceMonitorPro-v2/Shared/DSP/FDNReverb.cpp",
+  "output": "CMakeFiles/VoiceMonitorDSP.dir/Shared/DSP/FDNReverb.cpp.o"
+},
+{
+  "directory": "/Users/a/Desktop/projects/Reverb/VoiceMonitorPro-v2/build",
+  "command": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++ -DUSE_ARM64=1 -DVM_VERSION_MAJOR=2 -DVM_VERSION_MINOR=0 -I/Users/a/Desktop/projects/Reverb/VoiceMonitorPro-v2/Shared/DSP -I/Users/a/Desktop/projects/Reverb/VoiceMonitorPro-v2/Shared/Utils -F/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.5.sdk/System/Library/Frameworks -std=c++14 -fno-exceptions -fno-rtti -O3 -ffast-math -O3 -DNDEBUG -std=gnu++17 -arch arm64 -arch x86_64 -Xarch_arm64 -isysroot/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.5.sdk -Xarch_x86_64 -isysroot/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator18.5.sdk -miphoneos-version-min=14.0 -o CMakeFiles/VoiceMonitorDSP.dir/Shared/Utils/AudioMath.cpp.o -c /Users/a/Desktop/projects/Reverb/VoiceMonitorPro-v2/Shared/Utils/AudioMath.cpp",
+  "file": "/Users/a/Desktop/projects/Reverb/VoiceMonitorPro-v2/Shared/Utils/AudioMath.cpp",
+  "output": "CMakeFiles/VoiceMonitorDSP.dir/Shared/Utils/AudioMath.cpp.o"
+},
+{
+  "directory": "/Users/a/Desktop/projects/Reverb/VoiceMonitorPro-v2/build",
+  "command": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++  -I/Users/a/Desktop/projects/Reverb/VoiceMonitorPro-v2/Shared/DSP -I/Users/a/Desktop/projects/Reverb/VoiceMonitorPro-v2/Shared/Utils -x objective-c++ -O3 -DNDEBUG -std=gnu++17 -arch arm64 -arch x86_64 -Xarch_arm64 -isysroot/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.5.sdk -Xarch_x86_64 -isysroot/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator18.5.sdk -miphoneos-version-min=14.0 -o CMakeFiles/VoiceMonitorBridge.dir/iOS/AudioBridge/ReverbBridge.mm.o -c /Users/a/Desktop/projects/Reverb/VoiceMonitorPro-v2/iOS/AudioBridge/ReverbBridge.mm",
+  "file": "/Users/a/Desktop/projects/Reverb/VoiceMonitorPro-v2/iOS/AudioBridge/ReverbBridge.mm",
+  "output": "CMakeFiles/VoiceMonitorBridge.dir/iOS/AudioBridge/ReverbBridge.mm.o"
+},
+{
+  "directory": "/Users/a/Desktop/projects/Reverb/VoiceMonitorPro-v2/build",
+  "command": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++  -I/Users/a/Desktop/projects/Reverb/VoiceMonitorPro-v2/Shared/DSP -I/Users/a/Desktop/projects/Reverb/VoiceMonitorPro-v2/Shared/Utils -x objective-c++ -O3 -DNDEBUG -std=gnu++17 -arch arm64 -arch x86_64 -Xarch_arm64 -isysroot/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.5.sdk -Xarch_x86_64 -isysroot/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator18.5.sdk -miphoneos-version-min=14.0 -o CMakeFiles/VoiceMonitorBridge.dir/iOS/AudioBridge/AudioIOBridge.mm.o -c /Users/a/Desktop/projects/Reverb/VoiceMonitorPro-v2/iOS/AudioBridge/AudioIOBridge.mm",
+  "file": "/Users/a/Desktop/projects/Reverb/VoiceMonitorPro-v2/iOS/AudioBridge/AudioIOBridge.mm",
+  "output": "CMakeFiles/VoiceMonitorBridge.dir/iOS/AudioBridge/AudioIOBridge.mm.o"
+}
+]

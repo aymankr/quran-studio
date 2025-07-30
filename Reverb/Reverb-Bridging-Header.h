@@ -1,0 +1,15 @@
+//
+//  Reverb-Bridging-Header.h
+//  Reverb
+//
+//  C++ DSP Engine Integration
+//
+
+#ifndef Reverb_Bridging_Header_h
+#define Reverb_Bridging_Header_h
+
+// Include C++/Objective-C++ headers that need to be visible to Swift
+#import "CPPEngine/AudioBridge/ReverbBridge.h"
+#import "CPPEngine/AudioBridge/AudioIOBridge.h"
+
+#endif /* Reverb_Bridging_Header_h */

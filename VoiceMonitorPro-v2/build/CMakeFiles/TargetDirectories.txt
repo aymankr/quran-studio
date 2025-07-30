@@ -1,0 +1,4 @@
+/Users/a/Desktop/projects/Reverb/VoiceMonitorPro-v2/build/CMakeFiles/VoiceMonitorDSP.dir
+/Users/a/Desktop/projects/Reverb/VoiceMonitorPro-v2/build/CMakeFiles/VoiceMonitorBridge.dir
+/Users/a/Desktop/projects/Reverb/VoiceMonitorPro-v2/build/CMakeFiles/edit_cache.dir
+/Users/a/Desktop/projects/Reverb/VoiceMonitorPro-v2/build/CMakeFiles/rebuild_cache.dir

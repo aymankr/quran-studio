@@ -7,7 +7,7 @@ import AppKit
 #endif
 
 struct ContentView: View {
-    @StateObject private var audioManager = AudioManager.shared
+    @StateObject private var audioManager = AudioManagerCPP.shared
     @StateObject private var recordingHistory = RecordingHistory()
     
     // États locaux
@@ -470,14 +470,20 @@ struct ContentView: View {
             LazyVGrid(columns: columns, spacing: 8) {
                 ForEach(ReverbPreset.allCases, id: \.id) { preset in
                     Button(action: {
+                        print("🎛️ UI: User selected preset: \(preset.rawValue)")
                         if isMonitoring {
+                            print("✅ UI: Monitoring is active, applying preset")
                             selectedReverbPreset = preset
+                            print("📤 UI: Calling audioManager.updateReverbPreset(\(preset.rawValue))")
                             audioManager.updateReverbPreset(preset)
+                            print("📨 UI: updateReverbPreset call completed")
                             
                             // NOUVEAU: Présenter CustomReverbView si preset custom
                             if preset == .custom {
                                 showingCustomReverbView = true
                             }
+                        } else {
+                            print("⚠️ UI: Monitoring is NOT active, preset selection ignored")
                         }
                     }) {
                         VStack(spacing: 4) {
@@ -874,7 +880,7 @@ struct ContentView: View {
     // MARK: - HELPER FUNCTIONS
     
     private func setupAudio() {
-        audioManager.prepareAudio()
+        // AudioManagerCPP doesn't need prepareAudio() - it initializes automatically
         audioManager.setInputVolume(micGain)
         audioManager.setOutputVolume(masterVolume, isMuted: isMuted)
     }

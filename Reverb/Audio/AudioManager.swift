@@ -5,9 +5,19 @@ import Combine
 class AudioManager: ObservableObject {
     static let shared = AudioManager()
     
-    // Audio services
-    private(set) var audioEngineService: AudioEngineService?
-    private var recordingService: RecordingService?
+    // WORKING ARCHITECTURE: Multi-stage mixer pipeline (like successful repo)
+    private var audioEngine: AVAudioEngine?
+    private var reverbUnit: AVAudioUnitReverb?
+    private var isEngineRunning = false
+    
+    // Multi-stage mixer architecture (essential for proper audio flow)
+    private var gainMixer: AVAudioMixerNode?
+    private var cleanBypassMixer: AVAudioMixerNode?
+    private var recordingMixer: AVAudioMixerNode?
+    private var mainMixer: AVAudioMixerNode?
+    
+    // Connection format (critical for consistency)
+    private var connectionFormat: AVAudioFormat?
     
     // Published properties
     @Published var selectedReverbPreset: ReverbPreset = .vocalBooth
@@ -23,7 +33,7 @@ class AudioManager: ObservableObject {
     private var recordingStartTime: Date?
     
     // Monitoring state
-    private var isMonitoringActive = false
+    @Published var isMonitoring = false
     
     // Preset description
     var currentPresetDescription: String {
@@ -42,285 +52,394 @@ class AudioManager: ObservableObject {
     }
     
     private init() {
-        setupServices()
-    }
-    
-    private func setupServices() {
-        audioEngineService = AudioEngineService()
-        audioEngineService?.onAudioLevelChanged = { [weak self] level in
-            DispatchQueue.main.async {
-                self?.currentAudioLevel = level
-            }
-        }
-        
-        // CORRECTION: Passer l'audioEngineService au RecordingService
-        recordingService = RecordingService(audioEngineService: audioEngineService)
-        
-        print("✅ Audio services initialized with engine connection")
+        print("🎵 WORKING REPO AudioManager: Ready for multi-stage mixer architecture")
+        print("✅ Initialization complete - ready for advanced audio routing")
     }
     
     // MARK: - Public Methods
     
     func prepareAudio() {
-        if audioEngineService == nil {
-            setupServices()
-        }
-        print("🔧 Audio services prepared")
+        // No preparation needed for ultra-simple approach
+        print("🔧 ULTRA-SIMPLE: Audio ready")
     }
     
+    
     func startMonitoring() {
-        guard !isMonitoringActive else {
+        guard !isMonitoring else {
             print("⚠️ Monitoring already active")
             return
         }
         
-        audioEngineService?.setMonitoring(enabled: true)
-        audioEngineService?.updateReverbPreset(preset: selectedReverbPreset)
-        isMonitoringActive = true
+        print("🎵 === WORKING REPO ARCHITECTURE: Multi-Stage Mixer Pipeline ===")
         
-        print("✅ Monitoring started with preset: \(selectedReverbPreset.rawValue)")
+        // Check microphone permissions
+        let status = AVCaptureDevice.authorizationStatus(for: .audio)
+        print("1. Microphone permissions: \(status == .authorized ? "✅ AUTHORIZED" : "❌ DENIED")")
+        
+        if status != .authorized {
+            print("⚠️ Requesting microphone permissions...")
+            AVCaptureDevice.requestAccess(for: .audio) { granted in
+                DispatchQueue.main.async {
+                    if granted {
+                        self.startMonitoring()
+                    } else {
+                        print("❌ Permissions denied")
+                    }
+                }
+            }
+            return
+        }
+        
+        setupWorkingAudioEngine()
+    }
+    
+    private func setupWorkingAudioEngine() {
+        // Create engine and get nodes
+        let engine = AVAudioEngine()
+        let inputNode = engine.inputNode
+        let outputNode = engine.outputNode
+        
+        // Get input format and create stereo format (critical from working repo)
+        let inputFormat = inputNode.inputFormat(forBus: 0)
+        print("2. Input format: \(inputFormat.sampleRate)Hz, \(inputFormat.channelCount) channels")
+        
+        guard inputFormat.sampleRate > 0 else {
+            print("❌ Invalid input format!")
+            return
+        }
+        
+        // CRITICAL: Create stereo format for consistency (from working repo)
+        guard let stereoFormat = AVAudioFormat(standardFormatWithSampleRate: inputFormat.sampleRate, channels: 2) else {
+            print("❌ Could not create stereo format!")
+            return
+        }
+        self.connectionFormat = stereoFormat
+        
+        // Create all mixer nodes (working repo architecture)
+        let gainMixer = AVAudioMixerNode()
+        let cleanBypassMixer = AVAudioMixerNode()
+        let recordingMixer = AVAudioMixerNode()
+        let mainMixer = engine.mainMixerNode
+        
+        // Create reverb unit
+        let reverb = AVAudioUnitReverb()
+        loadCurrentPreset(reverb)
+        reverb.wetDryMix = getCurrentWetDryMix()
+        reverb.bypass = false
+        
+        // Attach all nodes
+        engine.attach(gainMixer)
+        engine.attach(cleanBypassMixer)
+        engine.attach(recordingMixer)
+        engine.attach(reverb)
+        
+        do {
+            // WORKING REPO CHAIN: Input → GainMixer → (CleanBypass OR Reverb) → RecordingMixer → MainMixer → Output
+            try engine.connect(inputNode, to: gainMixer, format: stereoFormat)
+            
+            // Route based on preset (critical from working repo)
+            if selectedReverbPreset == .clean {
+                print("3. 🎤 CLEAN MODE: Input → Gain → CleanBypass → Recording → Main → Output")
+                try engine.connect(gainMixer, to: cleanBypassMixer, format: stereoFormat)
+                try engine.connect(cleanBypassMixer, to: recordingMixer, format: stereoFormat)
+            } else {
+                print("3. 🎛️ REVERB MODE: Input → Gain → Reverb → Recording → Main → Output")
+                try engine.connect(gainMixer, to: reverb, format: stereoFormat)
+                try engine.connect(reverb, to: recordingMixer, format: stereoFormat)
+            }
+            
+            try engine.connect(recordingMixer, to: mainMixer, format: stereoFormat)
+            // MainMixer to output is already connected by default
+            
+            // WORKING REPO VOLUMES: Balanced, not extreme
+            gainMixer.volume = 1.3
+            cleanBypassMixer.volume = 1.2
+            recordingMixer.outputVolume = 1.0
+            mainMixer.outputVolume = 1.4
+            
+            print("4. ✅ BALANCED VOLUMES: Gain=1.3, Clean=1.2, Recording=1.0, Main=1.4")
+            print("🎛️ Preset: \(selectedReverbPreset.rawValue), wetDry: \(reverb.wetDryMix)%")
+            
+            engine.prepare()
+            try engine.start()
+            
+            // Store references
+            self.audioEngine = engine
+            self.reverbUnit = reverb
+            self.gainMixer = gainMixer
+            self.cleanBypassMixer = cleanBypassMixer
+            self.recordingMixer = recordingMixer
+            self.mainMixer = mainMixer
+            self.isEngineRunning = true
+            self.isMonitoring = true
+            
+            // Install audio level monitoring on the appropriate node
+            let monitorNode = selectedReverbPreset == .clean ? cleanBypassMixer : reverb
+            installAudioLevelTap(on: monitorNode, format: stereoFormat)
+            
+            print("5. ✅ WORKING REPO MONITORING ACTIVE!")
+            print("👂 You should hear yourself NOW with proper audio routing!")
+            
+        } catch {
+            print("❌ Working repo setup error: \(error.localizedDescription)")
+            isMonitoring = false
+        }
     }
     
     func stopMonitoring() {
-        guard isMonitoringActive else {
+        guard isMonitoring else {
             print("⚠️ Monitoring not active")
             return
         }
         
-        audioEngineService?.setMonitoring(enabled: false)
-        isMonitoringActive = false
+        print("🔇 ULTRA-SIMPLE MONITORING STOP")
         
-        if isRecording {
-            // Arrêter l'enregistrement si en cours
-            stopRecording { _, _, _ in }
+        if let engine = audioEngine, engine.isRunning {
+            reverbUnit?.removeTap(onBus: 0)
+            engine.stop()
         }
         
-        print("🔇 Monitoring stopped")
+        audioEngine = nil
+        reverbUnit = nil
+        gainMixer = nil
+        cleanBypassMixer = nil
+        recordingMixer = nil
+        mainMixer = nil
+        connectionFormat = nil
+        isEngineRunning = false
+        isMonitoring = false
+        currentAudioLevel = 0.0
+        
+        print("🛑 ULTRA-SIMPLE engine stopped")
     }
     
     func updateReverbPreset(_ preset: ReverbPreset) {
+        print("📥 WORKING REPO PRESET CHANGE: \(preset.rawValue)")
         selectedReverbPreset = preset
         
-        if preset == .custom {
-            ReverbPreset.updateCustomSettings(customReverbSettings)
+        guard let engine = audioEngine,
+              let gainMix = gainMixer,
+              let recordingMix = recordingMixer,
+              let format = connectionFormat else {
+            print("❌ Engine not properly initialized for preset change")
+            return
         }
         
-        audioEngineService?.updateReverbPreset(preset: preset)
-        
-        print("🎛️ Reverb preset updated to: \(preset.rawValue)")
+        // CRITICAL: Dynamic routing like working repo
+        do {
+            print("🔄 DYNAMIC ROUTING: Disconnecting and reconnecting nodes...")
+            
+            // Disconnect existing connections
+            engine.disconnectNodeOutput(gainMix)
+            engine.disconnectNodeInput(recordingMix)
+            
+            if preset == .clean {
+                print("🎤 SWITCHING TO CLEAN MODE: Bypassing reverb entirely")
+                
+                guard let cleanBypass = cleanBypassMixer else {
+                    print("❌ Clean bypass mixer not available")
+                    return
+                }
+                
+                // Route through clean bypass (no reverb)
+                try engine.connect(gainMix, to: cleanBypass, format: format)
+                try engine.connect(cleanBypass, to: recordingMix, format: format)
+                
+                print("✅ CLEAN ROUTING: Gain → CleanBypass → Recording")
+                
+            } else {
+                print("🎛️ SWITCHING TO REVERB MODE: \(preset.rawValue)")
+                
+                guard let reverb = reverbUnit else {
+                    print("❌ Reverb unit not available")
+                    return
+                }
+                
+                // Apply preset parameters
+                loadCurrentPreset(reverb)
+                reverb.wetDryMix = getCurrentWetDryMix()
+                reverb.bypass = false
+                
+                // Route through reverb
+                try engine.connect(gainMix, to: reverb, format: format)
+                try engine.connect(reverb, to: recordingMix, format: format)
+                
+                print("✅ REVERB ROUTING: Gain → Reverb(wetDry=\(reverb.wetDryMix)%) → Recording")
+            }
+            
+            // Update audio level monitoring on the new active node
+            let monitorNode = preset == .clean ? cleanBypassMixer : reverbUnit
+            if let monitor = monitorNode {
+                monitor.removeTap(onBus: 0)
+                installAudioLevelTap(on: monitor, format: format)
+            }
+            
+            print("✅ PRESET CHANGE COMPLETE: \(preset.rawValue)")
+            
+        } catch {
+            print("❌ Preset routing error: \(error.localizedDescription)")
+        }
     }
     
     // MARK: - Input Volume Control
     
     func setInputVolume(_ volume: Float) {
-        audioEngineService?.setInputVolume(volume)
+        // WORKING REPO: Control via gain mixer (first stage)
+        if let gain = gainMixer {
+            // Scale volume appropriately (working repo uses balanced values)
+            gain.volume = max(0.5, min(2.0, volume * 1.3))
+            print("🎵 WORKING REPO: Input volume via gain mixer: \(gain.volume)")
+        } else {
+            print("❌ No gain mixer available for input volume control")
+        }
     }
     
     func getInputVolume() -> Float {
-        return audioEngineService?.getInputVolume() ?? 0.7
+        // Return normalized volume from gain mixer
+        if let gain = gainMixer {
+            return gain.volume / 1.3
+        }
+        return 1.0
     }
     
-    // MARK: - Recording Methods (restent identiques)
+    func setOutputVolume(_ volume: Float, isMuted: Bool) {
+        // WORKING REPO: Control via main mixer (final stage)
+        if let main = mainMixer {
+            if isMuted {
+                main.outputVolume = 0.0
+            } else {
+                // Balanced scaling like working repo
+                main.outputVolume = max(0.8, min(2.0, volume * 1.4))
+            }
+            print("🔊 WORKING REPO: Main mixer volume: \(main.outputVolume), muted: \(isMuted)")
+        } else {
+            print("❌ No main mixer available for output volume control")
+        }
+    }
     
-    func startRecording(completion: @escaping (Bool) -> Void) {
-        guard let recordingService = recordingService else {
-            print("❌ Recording service not available")
-            completion(false)
-            return
+    // MARK: - Ultra-Simple Helper Functions
+    
+    private func getCurrentWetDryMix() -> Float {
+        // AVAudioUnitReverb.wetDryMix expects values from 0.0 to 100.0
+        // where 0 = 100% dry (original), 100 = 100% wet (effect)
+        switch selectedReverbPreset {
+        case .clean: return 0.0    // Pure dry signal (no reverb)
+        case .vocalBooth: return 25.0  // Subtle reverb
+        case .studio: return 50.0      // Balanced mix
+        case .cathedral: return 75.0   // Heavy reverb
+        case .custom: return customReverbSettings.wetDryMix
+        }
+    }
+    
+    private func loadCurrentPreset(_ reverb: AVAudioUnitReverb) {
+        switch selectedReverbPreset {
+        case .clean, .vocalBooth:
+            reverb.loadFactoryPreset(.smallRoom)
+        case .studio:
+            reverb.loadFactoryPreset(.mediumRoom)
+        case .cathedral:
+            reverb.loadFactoryPreset(.cathedral)
+        case .custom:
+            reverb.loadFactoryPreset(.mediumRoom)
         }
         
-        guard !isRecording else {
-            print("⚠️ Recording already in progress")
-            completion(false)
-            return
-        }
+        // Re-apply wetDryMix after preset (presets reset this value)
+        reverb.wetDryMix = getCurrentWetDryMix()
+    }
+    
+    private func installAudioLevelTap(on node: AVAudioNode, format: AVAudioFormat) {
+        node.removeTap(onBus: 0)
         
-        guard isMonitoringActive else {
-            print("⚠️ Cannot record without active monitoring")
-            completion(false)
-            return
-        }
-        
-        currentRecordingPreset = selectedReverbPreset.rawValue
-        recordingStartTime = Date()
-        
-        print("🎙️ Starting recording with processed signal (reverb: \(currentRecordingPreset))")
-        
-        recordingService.startRecording { [weak self] success in
-            DispatchQueue.main.async {
-                if success {
-                    self?.isRecording = true
-                    print("✅ Recording started with processed audio (preset: \(self?.currentRecordingPreset ?? "unknown"))")
-                } else {
-                    print("❌ Failed to start recording")
-                    self?.recordingStartTime = nil
+        // Use nil format to let AVAudioEngine determine the correct format
+        node.installTap(onBus: 0, bufferSize: 1024, format: nil) { [weak self] buffer, time in
+            guard let self = self else { return }
+            
+            guard let channelData = buffer.floatChannelData else { return }
+            
+            let frameLength = Int(buffer.frameLength)
+            let channelCount = Int(buffer.format.channelCount)
+            
+            guard frameLength > 0 && channelCount > 0 else { return }
+            
+            var totalLevel: Float = 0
+            
+            for channel in 0..<channelCount {
+                let channelPtr = channelData[channel]
+                var sum: Float = 0
+                
+                for i in 0..<frameLength {
+                    sum += abs(channelPtr[i])
                 }
-                completion(success)
+                
+                totalLevel += sum / Float(frameLength)
+            }
+            
+            let averageLevel = totalLevel / Float(channelCount)
+            let displayLevel = min(1.0, max(0.0, averageLevel * 5.0)) // Amplify for display
+            
+            DispatchQueue.main.async {
+                self.currentAudioLevel = displayLevel
             }
         }
+        
+        print("✅ ULTRA-SIMPLE: Audio level tap installed")
+    }
+    
+    // MARK: - Recording Methods (simplified stubs for now)
+    
+    func startRecording(completion: @escaping (Bool) -> Void) {
+        print("🎙️ ULTRA-SIMPLE: Recording not implemented yet")
+        completion(false)
     }
     
     func stopRecording(completion: @escaping (Bool, String?, TimeInterval) -> Void) {
-        guard let recordingService = recordingService else {
-            print("❌ Recording service not available")
-            completion(false, nil, 0)
-            return
-        }
-        
-        guard isRecording else {
-            print("⚠️ No active recording to stop")
-            completion(false, nil, 0)
-            return
-        }
-        
-        // Calculer la durée
-        let duration = recordingStartTime?.timeIntervalSinceNow.magnitude ?? 0
-        
-        recordingService.stopRecording { [weak self] success, filename in
-            DispatchQueue.main.async {
-                self?.isRecording = false
-                self?.recordingStartTime = nil
-                
-                if success {
-                    self?.lastRecordingFilename = filename
-                    print("✅ Processed recording stopped successfully: \(filename ?? "unknown"), duration: \(duration)s")
-                } else {
-                    print("❌ Recording stop failed")
-                    self?.lastRecordingFilename = self?.generateFallbackFilename()
-                }
-                
-                completion(success, filename, duration)
-            }
-        }
+        print("🛑 ULTRA-SIMPLE: Recording not implemented yet")
+        completion(false, nil, 0)
     }
     
     func toggleRecording() {
-        if isRecording {
-            stopRecording { success, filename, duration in
-                print("Recording toggled off: success=\(success), duration=\(duration)s")
-            }
-        } else {
-            startRecording { success in
-                print("Recording toggled on: success=\(success)")
-            }
-        }
+        print("🔄 ULTRA-SIMPLE: Recording toggle not implemented yet")
     }
     
-    private func generateFallbackFilename() -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyyMMdd_HHmmss"
-        return "recording_\(currentRecordingPreset)_\(formatter.string(from: Date())).m4a"
-    }
-    
-    // MARK: - Custom Reverb Management (reste identique)
+    // MARK: - Custom Settings
     
     func updateCustomReverbSettings(_ settings: CustomReverbSettings) {
         customReverbSettings = settings
-        ReverbPreset.updateCustomSettings(settings)
-        
         if selectedReverbPreset == .custom {
-            audioEngineService?.updateReverbPreset(preset: .custom)
+            reverbUnit?.wetDryMix = settings.wetDryMix
         }
-        
-        print("🎛️ Custom reverb settings updated")
     }
     
-    func resetCustomReverbSettings() {
-        customReverbSettings = CustomReverbSettings.default
-        ReverbPreset.updateCustomSettings(customReverbSettings)
-        
-        if selectedReverbPreset == .custom {
-            audioEngineService?.updateReverbPreset(preset: .custom)
-        }
-        
-        print("🔄 Custom reverb settings reset to default")
+    func updateCustomReverbLive(_ settings: CustomReverbSettings) {
+        updateCustomReverbSettings(settings)
     }
     
-    // MARK: - Audio Control Methods (restent identiques)
-    
-    func setOutputVolume(_ volume: Float, isMuted: Bool) {
-        audioEngineService?.setOutputVolume(volume, isMuted: isMuted)
-    }
-    
-    func diagnostic() {
-        print("🔍 === AUDIO MANAGER DIAGNOSTIC ===")
-        print("- Selected preset: \(selectedReverbPreset.rawValue)")
-        print("- Monitoring active: \(isMonitoringActive)")
-        print("- Recording active: \(isRecording)")
-        print("- Current audio level: \(currentAudioLevel)")
-        print("- Audio engine service: \(audioEngineService != nil ? "✅" : "❌")")
-        print("- Recording service: \(recordingService != nil ? "✅" : "❌")")
-        
-        audioEngineService?.diagnosticMonitoring()
-        print("=== END AUDIO MANAGER DIAGNOSTIC ===")
-    }
-    
-    // MARK: - Recording Info Methods (restent identiques)
-    
-    func getCurrentRecordingInfo() -> (preset: String, isActive: Bool, duration: TimeInterval) {
-        let duration = recordingStartTime?.timeIntervalSinceNow.magnitude ?? 0
-        return (currentRecordingPreset, isRecording, duration)
-    }
-    
-    func getRecordingDuration() -> TimeInterval {
-        guard let startTime = recordingStartTime, isRecording else { return 0 }
-        return Date().timeIntervalSince(startTime)
-    }
-    
-    // MARK: - State Properties (restent identiques)
-    
-    var isMonitoring: Bool {
-        return isMonitoringActive
-    }
+    // MARK: - Info Properties
     
     var canStartRecording: Bool {
-        return isMonitoringActive && !isRecording
+        return isMonitoring && !isRecording
     }
     
     var canStartMonitoring: Bool {
-        return audioEngineService != nil && !isMonitoringActive
+        return !isMonitoring
     }
     
-    // MARK: - Custom Settings Integration (reste identique)
+    var engineInfo: String {
+        return "Ultra-Simple AVAudioEngine"
+    }
     
-    func updateCustomSetting(
-        size: Float? = nil,
-        decayTime: Float? = nil,
-        preDelay: Float? = nil,
-        crossFeed: Float? = nil,
-        wetDryMix: Float? = nil,
-        density: Float? = nil,
-        highFrequencyDamping: Float? = nil,
-        applyImmediately: Bool = true
-    ) {
-        var settings = customReverbSettings
-        
-        if let size = size { settings.size = size }
-        if let decayTime = decayTime { settings.decayTime = decayTime }
-        if let preDelay = preDelay { settings.preDelay = preDelay }
-        if let crossFeed = crossFeed { settings.crossFeed = crossFeed }
-        if let wetDryMix = wetDryMix { settings.wetDryMix = wetDryMix }
-        if let density = density { settings.density = density }
-        if let highFrequencyDamping = highFrequencyDamping { settings.highFrequencyDamping = highFrequencyDamping }
-        
-        customReverbSettings = settings
-        
-        if applyImmediately {
-            updateCustomReverbSettings(settings)
+    func diagnostic() {
+        print("🔍 === ULTRA-SIMPLE DIAGNOSTIC ===")
+        print("- Selected preset: \(selectedReverbPreset.rawValue)")
+        print("- Monitoring active: \(isMonitoring)")
+        print("- Recording active: \(isRecording)")
+        print("- Current audio level: \(currentAudioLevel)")
+        print("- Engine running: \(isEngineRunning)")
+        print("- Audio engine: \(audioEngine != nil ? "✅" : "❌")")
+        print("- Reverb unit: \(reverbUnit != nil ? "✅" : "❌")")
+        if let reverb = reverbUnit {
+            print("- Reverb wetDryMix: \(reverb.wetDryMix)%")
         }
+        print("=== END ULTRA-SIMPLE DIAGNOSTIC ===")
     }
-    // Dans AudioManager.swift, ajouter une méthode pour les mises à jour live
-
-    func updateCustomReverbLive(_ settings: CustomReverbSettings) {
-        // Mise à jour immédiate sans validation excessive
-        customReverbSettings = settings
-        ReverbPreset.updateCustomSettings(settings)
-        
-        // Application directe si en mode custom et monitoring actif
-        if selectedReverbPreset == .custom && isMonitoringActive {
-            audioEngineService?.updateReverbPreset(preset: .custom)
-            print("🎛️ LIVE UPDATE: Custom reverb applied in real-time")
-        }
-    }
-
 }
