@@ -173,6 +173,65 @@ private:
         // Calculate compensation gain for constant perceived volume
         float calculateMidGainCompensation(float width) const;
     };
+    
+    // Professional tone filter for global High Cut and Low Cut (AD 480 style)
+    class ToneFilter {
+    public:
+        ToneFilter(double sampleRate = 48000.0);
+        void processStereo(float* left, float* right, int numSamples);
+        void setHighCutFreq(float freqHz);          // High cut filter (lowpass)
+        void setLowCutFreq(float freqHz);           // Low cut filter (highpass)
+        void setHighCutEnabled(bool enabled);       // Enable/disable high cut
+        void setLowCutEnabled(bool enabled);        // Enable/disable low cut
+        void updateSampleRate(double sampleRate);
+        void clear();
+        
+        // Getters for current state
+        float getHighCutFreq() const { return highCutFreq_; }
+        float getLowCutFreq() const { return lowCutFreq_; }
+        bool isHighCutEnabled() const { return highCutEnabled_; }
+        bool isLowCutEnabled() const { return lowCutEnabled_; }
+        
+    private:
+        // Reuse BiquadFilter struct from DampingFilter
+        struct BiquadFilter {
+            float b0, b1, b2;  // Numerator coefficients
+            float a1, a2;      // Denominator coefficients (a0 = 1)
+            float x1, x2;      // Input delay states
+            float y1, y2;      // Output delay states
+            
+            BiquadFilter() : b0(1), b1(0), b2(0), a1(0), a2(0), x1(0), x2(0), y1(0), y2(0) {}
+            
+            float process(float input) {
+                // Direct Form II implementation
+                float output = b0 * input + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
+                
+                // Update delay states
+                x2 = x1; x1 = input;
+                y2 = y1; y1 = output;
+                
+                return output;
+            }
+            
+            void clear() {
+                x1 = x2 = y1 = y2 = 0.0f;
+            }
+        };
+        
+        // Stereo filters (L and R channels)
+        BiquadFilter highCutL_, highCutR_;     // High cut (lowpass) filters
+        BiquadFilter lowCutL_, lowCutR_;       // Low cut (highpass) filters
+        
+        double sampleRate_;         // Current sample rate
+        float highCutFreq_;         // High cut frequency (Hz)
+        float lowCutFreq_;          // Low cut frequency (Hz)
+        bool highCutEnabled_;       // High cut filter enabled
+        bool lowCutEnabled_;        // Low cut filter enabled
+        
+        // Calculate biquad coefficients for filters
+        void calculateLowpassCoeffs(BiquadFilter& filter, float cutoffHz);
+        void calculateHighpassCoeffs(BiquadFilter& filter, float cutoffHz);
+    };
 
 public:
     FDNReverb(double sampleRate, int numDelayLines = DEFAULT_DELAY_LINES);
@@ -203,6 +262,12 @@ public:
     void setStereoSpread(float spread);         // 0.0 = mono wet, 1.0 = natural, 2.0 = wide wet
     void setStereoSpreadCompensation(bool compensate); // Compensate mid gain for constant volume
     
+    // Global tone control (AD 480 "High Cut" and "Low Cut" - output EQ)
+    void setHighCutFreq(float freqHz);          // High cut filter frequency (1kHz-20kHz)
+    void setLowCutFreq(float freqHz);           // Low cut filter frequency (20Hz-1kHz)
+    void setHighCutEnabled(bool enabled);       // Enable/disable high cut filter
+    void setLowCutEnabled(bool enabled);        // Enable/disable low cut filter
+    
     // Utility
     void reset();
     void clear();
@@ -229,6 +294,7 @@ private:
     std::vector<std::unique_ptr<ModulatedDelay>> modulatedDelays_;
     std::unique_ptr<CrossFeedProcessor> crossFeedProcessor_;
     std::unique_ptr<StereoSpreadProcessor> stereoSpreadProcessor_;
+    std::unique_ptr<ToneFilter> toneFilter_;
     
     // Early reflections processing (before FDN)
     std::vector<std::unique_ptr<AllPassFilter>> earlyReflectionFilters_;

@@ -331,6 +331,9 @@ FDNReverb::FDNReverb(double sampleRate, int numDelayLines)
     // Initialize stereo spread processor for output wet control
     stereoSpreadProcessor_ = std::make_unique<StereoSpreadProcessor>();
     
+    // Initialize tone filter for global High Cut and Low Cut
+    toneFilter_ = std::make_unique<ToneFilter>(sampleRate_);
+    
     // Initialize state vectors
     delayOutputs_.resize(numDelayLines_);
     matrixOutputs_.resize(numDelayLines_);
@@ -466,6 +469,12 @@ void FDNReverb::processStereo(const float* inputL, const float* inputR,
     // This controls the stereo width of the wet signal only
     if (stereoSpreadProcessor_) {
         stereoSpreadProcessor_->processStereo(outputL, outputR, numSamples);
+    }
+    
+    // STEP 4: Apply global tone filtering (AD 480 "High Cut" and "Low Cut")
+    // This is the final EQ stage before wet/dry mix (out-of-loop filtering)
+    if (toneFilter_) {
+        toneFilter_->processStereo(outputL, outputR, numSamples);
     }
 }
 
@@ -742,6 +751,31 @@ void FDNReverb::setStereoSpreadCompensation(bool compensate) {
     }
 }
 
+// Global tone control methods (AD 480 "High Cut" and "Low Cut" - output EQ)
+void FDNReverb::setHighCutFreq(float freqHz) {
+    if (toneFilter_) {
+        toneFilter_->setHighCutFreq(freqHz);
+    }
+}
+
+void FDNReverb::setLowCutFreq(float freqHz) {
+    if (toneFilter_) {
+        toneFilter_->setLowCutFreq(freqHz);
+    }
+}
+
+void FDNReverb::setHighCutEnabled(bool enabled) {
+    if (toneFilter_) {
+        toneFilter_->setHighCutEnabled(enabled);
+    }
+}
+
+void FDNReverb::setLowCutEnabled(bool enabled) {
+    if (toneFilter_) {
+        toneFilter_->setLowCutEnabled(enabled);
+    }
+}
+
 void FDNReverb::setModulation(float depth, float rate) {
     for (int i = 0; i < modulatedDelays_.size(); ++i) {
         // Vary modulation parameters slightly for each delay line
@@ -779,6 +813,11 @@ void FDNReverb::clear() {
         filter->clear();
     }
     
+    // Clear tone filter
+    if (toneFilter_) {
+        toneFilter_->clear();
+    }
+    
     preDelayLine_->clear();
     
     std::fill(delayOutputs_.begin(), delayOutputs_.end(), 0.0f);
@@ -800,6 +839,11 @@ void FDNReverb::updateSampleRate(double sampleRate) {
     // Update damping filters with new sample rate
     for (auto& filter : dampingFilters_) {
         filter->updateSampleRate(sampleRate);
+    }
+    
+    // Update tone filter with new sample rate
+    if (toneFilter_) {
+        toneFilter_->updateSampleRate(sampleRate);
     }
     
     reset(); // Recalculate everything for new sample rate
@@ -1197,6 +1241,11 @@ void FDNReverb::flushAllBuffers() {
         crossFeedProcessor_->clear();
     }
     
+    // Clear tone filter
+    if (toneFilter_) {
+        toneFilter_->clear();
+    }
+    
     // Clear processing buffers
     std::fill(delayOutputs_.begin(), delayOutputs_.end(), 0.0f);
     std::fill(matrixOutputs_.begin(), matrixOutputs_.end(), 0.0f);
@@ -1424,6 +1473,140 @@ float FDNReverb::measureRT60FromImpulseResponse(const std::vector<float>& impuls
     }
     
     printf("==============================================\n");
+}
+
+// Professional ToneFilter Implementation (AD 480 Global High Cut and Low Cut)
+FDNReverb::ToneFilter::ToneFilter(double sampleRate)
+    : sampleRate_(sampleRate)
+    , highCutFreq_(20000.0f)         // Default: no high cut (20kHz)
+    , lowCutFreq_(20.0f)             // Default: no low cut (20Hz)
+    , highCutEnabled_(false)         // Default: high cut disabled
+    , lowCutEnabled_(false) {        // Default: low cut disabled
+    
+    // Initialize all filters with neutral settings (no filtering)
+    setHighCutFreq(20000.0f);  // No high cut
+    setLowCutFreq(20.0f);      // No low cut
+    
+    printf("ToneFilter initialized: High Cut=%.0fHz (%s), Low Cut=%.0fHz (%s)\n", 
+           highCutFreq_, highCutEnabled_ ? "ON" : "OFF",
+           lowCutFreq_, lowCutEnabled_ ? "ON" : "OFF");
+}
+
+void FDNReverb::ToneFilter::processStereo(float* left, float* right, int numSamples) {
+    // Professional AD 480 style global tone filtering
+    // Applied to wet signal BEFORE wet/dry mix (out-of-loop filtering)
+    
+    for (int i = 0; i < numSamples; ++i) {
+        float leftSample = left[i];
+        float rightSample = right[i];
+        
+        // Apply High Cut filter (lowpass) if enabled
+        if (highCutEnabled_) {
+            leftSample = highCutL_.process(leftSample);
+            rightSample = highCutR_.process(rightSample);
+        }
+        
+        // Apply Low Cut filter (highpass) if enabled
+        if (lowCutEnabled_) {
+            leftSample = lowCutL_.process(leftSample);
+            rightSample = lowCutR_.process(rightSample);
+        }
+        
+        left[i] = leftSample;
+        right[i] = rightSample;
+    }
+}
+
+void FDNReverb::ToneFilter::setHighCutFreq(float freqHz) {
+    highCutFreq_ = std::clamp(freqHz, 1000.0f, 20000.0f); // 1kHz-20kHz range
+    
+    // Update both L and R channel filters
+    calculateLowpassCoeffs(highCutL_, highCutFreq_);
+    calculateLowpassCoeffs(highCutR_, highCutFreq_);
+    
+    printf("High Cut frequency: %.0f Hz\n", highCutFreq_);
+}
+
+void FDNReverb::ToneFilter::setLowCutFreq(float freqHz) {
+    lowCutFreq_ = std::clamp(freqHz, 20.0f, 1000.0f); // 20Hz-1kHz range
+    
+    // Update both L and R channel filters
+    calculateHighpassCoeffs(lowCutL_, lowCutFreq_);
+    calculateHighpassCoeffs(lowCutR_, lowCutFreq_);
+    
+    printf("Low Cut frequency: %.0f Hz\n", lowCutFreq_);
+}
+
+void FDNReverb::ToneFilter::setHighCutEnabled(bool enabled) {
+    highCutEnabled_ = enabled;
+    printf("High Cut filter: %s\n", enabled ? "ENABLED" : "DISABLED");
+}
+
+void FDNReverb::ToneFilter::setLowCutEnabled(bool enabled) {
+    lowCutEnabled_ = enabled;
+    printf("Low Cut filter: %s\n", enabled ? "ENABLED" : "DISABLED");
+}
+
+void FDNReverb::ToneFilter::updateSampleRate(double sampleRate) {
+    sampleRate_ = sampleRate;
+    
+    // Recalculate all filter coefficients with new sample rate
+    setHighCutFreq(highCutFreq_);
+    setLowCutFreq(lowCutFreq_);
+    
+    printf("ToneFilter sample rate updated: %.0f Hz\n", sampleRate_);
+}
+
+void FDNReverb::ToneFilter::clear() {
+    // Clear all filter states
+    highCutL_.clear();
+    highCutR_.clear();
+    lowCutL_.clear();
+    lowCutR_.clear();
+}
+
+void FDNReverb::ToneFilter::calculateLowpassCoeffs(BiquadFilter& filter, float cutoffHz) {
+    // Calculate Butterworth 2nd order lowpass biquad coefficients (-12 dB/oct)
+    // Using bilinear transform for digital filter design
+    
+    // Calculate digital frequency
+    float omega = 2.0f * M_PI * cutoffHz / static_cast<float>(sampleRate_);
+    float cos_omega = std::cos(omega);
+    float sin_omega = std::sin(omega);
+    
+    // Butterworth Q factor for 2nd order lowpass
+    float Q = 0.7071f; // sqrt(2)/2 for maximally flat response
+    float alpha = sin_omega / (2.0f * Q);
+    
+    // Lowpass biquad coefficients (normalized by a0)
+    float a0 = 1.0f + alpha;
+    filter.b0 = ((1.0f - cos_omega) / 2.0f) / a0;
+    filter.b1 = (1.0f - cos_omega) / a0;
+    filter.b2 = ((1.0f - cos_omega) / 2.0f) / a0;
+    filter.a1 = (-2.0f * cos_omega) / a0;
+    filter.a2 = (1.0f - alpha) / a0;
+}
+
+void FDNReverb::ToneFilter::calculateHighpassCoeffs(BiquadFilter& filter, float cutoffHz) {
+    // Calculate Butterworth 2nd order highpass biquad coefficients (-12 dB/oct)
+    // Using bilinear transform for digital filter design
+    
+    // Calculate digital frequency
+    float omega = 2.0f * M_PI * cutoffHz / static_cast<float>(sampleRate_);
+    float cos_omega = std::cos(omega);
+    float sin_omega = std::sin(omega);
+    
+    // Butterworth Q factor for 2nd order highpass
+    float Q = 0.7071f; // sqrt(2)/2 for maximally flat response
+    float alpha = sin_omega / (2.0f * Q);
+    
+    // Highpass biquad coefficients (normalized by a0)
+    float a0 = 1.0f + alpha;
+    filter.b0 = ((1.0f + cos_omega) / 2.0f) / a0;
+    filter.b1 = (-(1.0f + cos_omega)) / a0;
+    filter.b2 = ((1.0f + cos_omega) / 2.0f) / a0;
+    filter.a1 = (-2.0f * cos_omega) / a0;
+    filter.a2 = (1.0f - alpha) / a0;
 }
 
 } // namespace VoiceMonitor
