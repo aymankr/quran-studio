@@ -122,72 +122,120 @@ void FDNReverb::AllPassFilter::clear() {
     lastOutput_ = 0.0f;
 }
 
-// DampingFilter Implementation
-FDNReverb::DampingFilter::DampingFilter() 
-    : hfState1_(0.0f), hfState2_(0.0f)
-    , lfState1_(0.0f), lfState2_(0.0f)
-    , hfCoeff1_(0.8f), hfCoeff2_(0.2f)
-    , lfCoeff1_(0.8f), lfCoeff2_(0.2f)
-    , hfGain_(1.0f), lfGain_(1.0f) {
-}
-
-void FDNReverb::DampingFilter::setDamping(float hfDamping, float lfDamping, float sampleRate) {
-    // Calculate Butterworth 2nd order coefficients for HF damping
-    float hfCutoff = 8000.0f * (1.0f - hfDamping); // 8kHz to 100Hz range
-    float hfOmega = 2.0f * M_PI * hfCutoff / sampleRate;
-    float hfCos = std::cos(hfOmega);
-    float hfSin = std::sin(hfOmega);
-    float hfAlpha = hfSin / 1.414f; // Q = sqrt(2)/2 for Butterworth
+// Professional DampingFilter Implementation with Separate HF/LF Biquads (AD 480 Style)
+FDNReverb::DampingFilter::DampingFilter(double sampleRate)
+    : sampleRate_(sampleRate)
+    , hfCutoffHz_(8000.0f)          // Default HF cutoff
+    , lfCutoffHz_(200.0f)           // Default LF cutoff
+    , hfDampingPercent_(0.0f)       // Default no HF damping
+    , lfDampingPercent_(0.0f) {     // Default no LF damping
     
-    float hfB0 = (1.0f - hfCos) / 2.0f;
-    float hfB1 = 1.0f - hfCos;
-    float hfB2 = (1.0f - hfCos) / 2.0f;
-    float hfA0 = 1.0f + hfAlpha;
-    float hfA1 = -2.0f * hfCos;
-    float hfA2 = 1.0f - hfAlpha;
+    // Initialize with neutral settings (no damping)
+    setHFDamping(0.0f, 8000.0f);
+    setLFDamping(0.0f, 200.0f);
     
-    hfCoeff1_ = hfA1 / hfA0;
-    hfCoeff2_ = hfA2 / hfA0;
-    hfGain_ = hfB0 / hfA0;
-    
-    // Calculate Butterworth 2nd order coefficients for LF damping  
-    float lfCutoff = 200.0f * (1.0f - lfDamping) + 50.0f; // 200Hz to 50Hz range
-    float lfOmega = 2.0f * M_PI * lfCutoff / sampleRate;
-    float lfCos = std::cos(lfOmega);
-    float lfSin = std::sin(lfOmega);
-    float lfAlpha = lfSin / 1.414f;
-    
-    float lfB0 = (1.0f + lfCos) / 2.0f;
-    float lfB1 = -(1.0f + lfCos);
-    float lfB2 = (1.0f + lfCos) / 2.0f;
-    float lfA0 = 1.0f + lfAlpha;
-    float lfA1 = -2.0f * lfCos;
-    float lfA2 = 1.0f - lfAlpha;
-    
-    lfCoeff1_ = lfA1 / lfA0;
-    lfCoeff2_ = lfA2 / lfA0;
-    lfGain_ = lfB0 / lfA0;
+    printf("DampingFilter initialized: HF=%.0fHz LF=%.0fHz\n", hfCutoffHz_, lfCutoffHz_);
 }
 
 float FDNReverb::DampingFilter::process(float input) {
-    // Process through HF lowpass filter (2nd order Butterworth)
-    float hfOutput = hfGain_ * (input + 2.0f * hfState1_ + hfState2_) 
-                   - hfCoeff1_ * hfState1_ - hfCoeff2_ * hfState2_;
-    hfState2_ = hfState1_;
-    hfState1_ = input;
+    // Process through HF lowpass filter first, then LF highpass filter
+    // This creates a bandpass response with controlled HF and LF damping
     
-    // Process through LF highpass filter (2nd order Butterworth)
-    float lfOutput = lfGain_ * (hfOutput - 2.0f * lfState1_ + lfState2_) 
-                   - lfCoeff1_ * lfState1_ - lfCoeff2_ * lfState2_;
-    lfState2_ = lfState1_;
-    lfState1_ = hfOutput;
+    float hfFiltered = hfFilter_.process(input);
+    float output = lfFilter_.process(hfFiltered);
     
-    return lfOutput;
+    return output;
+}
+
+void FDNReverb::DampingFilter::setHFDamping(float dampingPercent, float cutoffHz) {
+    hfDampingPercent_ = std::clamp(dampingPercent, 0.0f, 100.0f);
+    hfCutoffHz_ = std::clamp(cutoffHz, 1000.0f, 12000.0f);
+    
+    calculateLowpassCoeffs(hfFilter_, hfCutoffHz_, hfDampingPercent_);
+}
+
+void FDNReverb::DampingFilter::setLFDamping(float dampingPercent, float cutoffHz) {
+    lfDampingPercent_ = std::clamp(dampingPercent, 0.0f, 100.0f);
+    lfCutoffHz_ = std::clamp(cutoffHz, 50.0f, 500.0f);
+    
+    calculateHighpassCoeffs(lfFilter_, lfCutoffHz_, lfDampingPercent_);
+}
+
+void FDNReverb::DampingFilter::updateSampleRate(double sampleRate) {
+    sampleRate_ = sampleRate;
+    
+    // Recalculate both filters with new sample rate
+    setHFDamping(hfDampingPercent_, hfCutoffHz_);
+    setLFDamping(lfDampingPercent_, lfCutoffHz_);
 }
 
 void FDNReverb::DampingFilter::clear() {
-    hfState1_ = hfState2_ = 0.0f;
-    lfState1_ = lfState2_ = 0.0f;
+    hfFilter_.clear();
+    lfFilter_.clear();
+}
+
+void FDNReverb::DampingFilter::calculateLowpassCoeffs(BiquadFilter& filter, float cutoffHz, float dampingPercent) {
+    // Calculate Butterworth 2nd order lowpass biquad coefficients
+    // Using bilinear transform for digital filter design
+    
+    if (dampingPercent <= 0.0f) {
+        // No damping: set to all-pass (unity gain)
+        filter.b0 = 1.0f; filter.b1 = 0.0f; filter.b2 = 0.0f;
+        filter.a1 = 0.0f; filter.a2 = 0.0f;
+        return;
+    }
+    
+    // Calculate digital frequency
+    float omega = 2.0f * M_PI * cutoffHz / static_cast<float>(sampleRate_);
+    float cos_omega = std::cos(omega);
+    float sin_omega = std::sin(omega);
+    
+    // Butterworth Q factor
+    float Q = 0.7071f; // sqrt(2)/2 for Butterworth response
+    float alpha = sin_omega / (2.0f * Q);
+    
+    // Apply damping scaling to filter coefficients
+    float dampingFactor = 1.0f - (dampingPercent / 100.0f) * 0.8f; // Max 80% reduction
+    
+    // Lowpass biquad coefficients (normalized by a0)
+    float a0 = 1.0f + alpha;
+    filter.b0 = ((1.0f - cos_omega) / 2.0f) / a0 * dampingFactor;
+    filter.b1 = (1.0f - cos_omega) / a0 * dampingFactor;
+    filter.b2 = ((1.0f - cos_omega) / 2.0f) / a0 * dampingFactor;
+    filter.a1 = (-2.0f * cos_omega) / a0;
+    filter.a2 = (1.0f - alpha) / a0;
+}
+
+void FDNReverb::DampingFilter::calculateHighpassCoeffs(BiquadFilter& filter, float cutoffHz, float dampingPercent) {
+    // Calculate Butterworth 2nd order highpass biquad coefficients
+    // Using bilinear transform for digital filter design
+    
+    if (dampingPercent <= 0.0f) {
+        // No damping: set to all-pass (unity gain)
+        filter.b0 = 1.0f; filter.b1 = 0.0f; filter.b2 = 0.0f;
+        filter.a1 = 0.0f; filter.a2 = 0.0f;
+        return;
+    }
+    
+    // Calculate digital frequency
+    float omega = 2.0f * M_PI * cutoffHz / static_cast<float>(sampleRate_);
+    float cos_omega = std::cos(omega);
+    float sin_omega = std::sin(omega);
+    
+    // Butterworth Q factor
+    float Q = 0.7071f; // sqrt(2)/2 for Butterworth response
+    float alpha = sin_omega / (2.0f * Q);
+    
+    // Apply damping scaling to filter coefficients
+    float dampingFactor = 1.0f - (dampingPercent / 100.0f) * 0.6f; // Max 60% reduction for LF
+    
+    // Highpass biquad coefficients (normalized by a0)
+    float a0 = 1.0f + alpha;
+    filter.b0 = ((1.0f + cos_omega) / 2.0f) / a0 * dampingFactor;
+    filter.b1 = (-(1.0f + cos_omega)) / a0 * dampingFactor;
+    filter.b2 = ((1.0f + cos_omega) / 2.0f) / a0 * dampingFactor;
+    filter.a1 = (-2.0f * cos_omega) / a0;
+    filter.a2 = (1.0f - alpha) / a0;
 }
 
 // ModulatedDelay Implementation
@@ -264,9 +312,9 @@ FDNReverb::FDNReverb(double sampleRate, int numDelayLines)
         diffusionFilters_.emplace_back(std::make_unique<AllPassFilter>(diffusionPrimes[i], gain));
     }
     
-    // Initialize damping filters
+    // Initialize damping filters with sample rate
     for (int i = 0; i < numDelayLines_; ++i) {
-        dampingFilters_.emplace_back(std::make_unique<DampingFilter>());
+        dampingFilters_.emplace_back(std::make_unique<DampingFilter>(sampleRate_));
     }
     
     // Initialize modulated delays for chorus effect
@@ -621,21 +669,33 @@ void FDNReverb::setDensity(float density) {
 }
 
 void FDNReverb::setHighFreqDamping(float damping) {
-    highFreqDamping_ = std::max(0.0f, std::min(damping, 1.0f));
+    highFreqDamping_ = std::clamp(damping, 0.0f, 1.0f);
     
-    // Update all damping filters with both HF and LF settings
+    // Convert damping percentage to cutoff frequency (AD 480 style)
+    // damping 0% = 12kHz cutoff (no damping), 100% = 1kHz cutoff (heavy damping)
+    float cutoffHz = 12000.0f - (damping * 11000.0f); // 12kHz to 1kHz range
+    
+    // Update all damping filters with new HF settings
     for (auto& filter : dampingFilters_) {
-        filter->setDamping(highFreqDamping_, lowFreqDamping_, sampleRate_);
+        filter->setHFDamping(highFreqDamping_ * 100.0f, cutoffHz);
     }
+    
+    printf("HF Damping: %.1f%% (cutoff: %.0f Hz)\n", highFreqDamping_ * 100.0f, cutoffHz);
 }
 
 void FDNReverb::setLowFreqDamping(float damping) {
-    lowFreqDamping_ = std::max(0.0f, std::min(damping, 1.0f));
+    lowFreqDamping_ = std::clamp(damping, 0.0f, 1.0f);
     
-    // Update all damping filters with both HF and LF settings
+    // Convert damping percentage to cutoff frequency (AD 480 style)
+    // damping 0% = 50Hz cutoff (no LF damping), 100% = 500Hz cutoff (heavy LF damping)
+    float cutoffHz = 50.0f + (damping * 450.0f); // 50Hz to 500Hz range
+    
+    // Update all damping filters with new LF settings
     for (auto& filter : dampingFilters_) {
-        filter->setDamping(highFreqDamping_, lowFreqDamping_, sampleRate_);
+        filter->setLFDamping(lowFreqDamping_ * 100.0f, cutoffHz);
     }
+    
+    printf("LF Damping: %.1f%% (cutoff: %.0f Hz)\n", lowFreqDamping_ * 100.0f, cutoffHz);
 }
 
 // Advanced stereo control methods (AD 480 style)
@@ -735,6 +795,11 @@ void FDNReverb::updateSampleRate(double sampleRate) {
     // Update cross-feed processor with new sample rate
     if (crossFeedProcessor_) {
         crossFeedProcessor_->updateSampleRate(sampleRate);
+    }
+    
+    // Update damping filters with new sample rate
+    for (auto& filter : dampingFilters_) {
+        filter->updateSampleRate(sampleRate);
     }
     
     reset(); // Recalculate everything for new sample rate

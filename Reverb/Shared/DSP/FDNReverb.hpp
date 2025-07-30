@@ -43,21 +43,62 @@ private:
         float lastOutput_; // State for all-pass feedback
     };
     
-    // Enhanced damping filter with separate HF/LF control (AD 480 style)
+    // Professional damping filter with separate HF/LF biquads (AD 480 style)
     class DampingFilter {
     public:
-        DampingFilter();
+        DampingFilter(double sampleRate = 48000.0);
         float process(float input);
-        void setDamping(float hfDamping, float lfDamping, float sampleRate);
+        void setHFDamping(float dampingPercent, float cutoffHz = 8000.0f);  // HF: 1kHz-12kHz range
+        void setLFDamping(float dampingPercent, float cutoffHz = 200.0f);   // LF: 50Hz-500Hz range
+        void updateSampleRate(double sampleRate);
         void clear();
         
+        // Getters for current state
+        float getHFCutoff() const { return hfCutoffHz_; }
+        float getLFCutoff() const { return lfCutoffHz_; }
+        float getHFDamping() const { return hfDampingPercent_; }
+        float getLFDamping() const { return lfDampingPercent_; }
+        
     private:
-        // Butterworth 2nd order filters for HF and LF
-        float hfState1_, hfState2_;  // HF filter states
-        float lfState1_, lfState2_;  // LF filter states
-        float hfCoeff1_, hfCoeff2_;  // HF filter coefficients
-        float lfCoeff1_, lfCoeff2_;  // LF filter coefficients
-        float hfGain_, lfGain_;      // Filter gains
+        // Professional biquad filter implementation
+        struct BiquadFilter {
+            float b0, b1, b2;  // Numerator coefficients
+            float a1, a2;      // Denominator coefficients (a0 = 1)
+            float x1, x2;      // Input delay states
+            float y1, y2;      // Output delay states
+            
+            BiquadFilter() : b0(1), b1(0), b2(0), a1(0), a2(0), x1(0), x2(0), y1(0), y2(0) {}
+            
+            float process(float input) {
+                // Direct Form II implementation
+                float output = b0 * input + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
+                
+                // Update delay states
+                x2 = x1; x1 = input;
+                y2 = y1; y1 = output;
+                
+                return output;
+            }
+            
+            void clear() {
+                x1 = x2 = y1 = y2 = 0.0f;
+            }
+        };
+        
+        BiquadFilter hfFilter_;         // High-frequency lowpass filter
+        BiquadFilter lfFilter_;         // Low-frequency highpass filter
+        
+        double sampleRate_;             // Current sample rate
+        float hfCutoffHz_;              // HF cutoff frequency
+        float lfCutoffHz_;              // LF cutoff frequency
+        float hfDampingPercent_;        // HF damping amount (0-100%)
+        float lfDampingPercent_;        // LF damping amount (0-100%)
+        
+        // Calculate Butterworth lowpass biquad coefficients
+        void calculateLowpassCoeffs(BiquadFilter& filter, float cutoffHz, float dampingPercent);
+        
+        // Calculate Butterworth highpass biquad coefficients  
+        void calculateHighpassCoeffs(BiquadFilter& filter, float cutoffHz, float dampingPercent);
     };
     
     // Modulated delay for chorus-like effects
