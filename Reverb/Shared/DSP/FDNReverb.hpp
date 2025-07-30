@@ -40,6 +40,7 @@ private:
     private:
         DelayLine delay_;
         float gain_;
+        float lastOutput_; // State for all-pass feedback
     };
     
     // Enhanced damping filter with separate HF/LF control (AD 480 style)
@@ -126,6 +127,11 @@ public:
     // Quality settings
     void setDiffusionStages(int stages); // Number of all-pass stages
     void setInterpolation(bool enabled) { useInterpolation_ = enabled; }
+    
+    // Diagnostic and optimization methods
+    void printFDNConfiguration() const; // Debug: print current FDN setup
+    bool verifyMatrixOrthogonality() const; // Verify feedback matrix properties
+    std::vector<int> getCurrentDelayLengths() const; // Get current delay lengths
 
 private:
     // Core components
@@ -135,10 +141,20 @@ private:
     std::vector<std::unique_ptr<ModulatedDelay>> modulatedDelays_;
     std::unique_ptr<CrossFeedProcessor> crossFeedProcessor_;
     
+    // Early reflections processing (before FDN)
+    std::vector<std::unique_ptr<AllPassFilter>> earlyReflectionFilters_;
+    static constexpr int MAX_EARLY_REFLECTIONS = 4;
+    int numEarlyReflections_;
+    
     // Configuration
     double sampleRate_;
     int numDelayLines_;
     bool useInterpolation_;
+    
+    // Buffer flush management for size changes
+    float lastRoomSize_;
+    bool needsBufferFlush_;
+    static constexpr float ROOM_SIZE_CHANGE_THRESHOLD = 0.05f;
     
     // Current parameters
     float decayTime_;
@@ -164,13 +180,20 @@ private:
     void setupFeedbackMatrix();
     void calculateDelayLengths(std::vector<int>& lengths, float baseSize);
     void generateHouseholderMatrix();
+    void setupEarlyReflections();
+    
+    // Buffer management for size changes
+    void checkAndFlushBuffers();
+    void flushAllBuffers();
     
     // Prime numbers for delay lengths (avoid flutter echoes)
     static const std::vector<int> PRIME_DELAYS;
+    static const std::vector<int> EARLY_REFLECTION_DELAYS; // Prime delays for early reflections
     
     // DSP utilities
     float interpolateLinear(const std::vector<float>& buffer, float index, int bufferSize);
     void processMatrix();
+    float processEarlyReflections(float input);
 };
 
 } // namespace VoiceMonitor

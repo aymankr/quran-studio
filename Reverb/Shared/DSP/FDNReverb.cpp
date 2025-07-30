@@ -6,9 +6,43 @@
 
 namespace VoiceMonitor {
 
-// Prime numbers for delay lengths to avoid flutter echoes
+// Optimized prime numbers for FDN delay lengths (30ms to 100ms at 48kHz)
+// These are carefully selected to minimize periodicities and flutter echoes
+// Based on Freeverb and professional reverb research
 const std::vector<int> FDNReverb::PRIME_DELAYS = {
-    347, 383, 431, 479, 523, 587, 647, 719, 787, 859, 937, 1009
+    1447,  // ~30.1ms at 48kHz - Concert hall early reflections
+    1549,  // ~32.3ms - Small hall size
+    1693,  // ~35.3ms - Medium hall size  
+    1789,  // ~37.3ms - Large room reflections
+    1907,  // ~39.7ms - Cathedral early reflections
+    2063,  // ~43.0ms - Large hall reflections
+    2179,  // ~45.4ms - Stadium-like reflections
+    2311,  // ~48.1ms - Very large space early
+    2467,  // ~51.4ms - Cathedral main body
+    2633,  // ~54.9ms - Large cathedral reflections
+    2801,  // ~58.4ms - Massive space early
+    2969,  // ~61.9ms - Very large hall main
+    3137,  // ~65.4ms - Cathedral nave reflections
+    3307,  // ~68.9ms - Huge space main body
+    3491,  // ~72.7ms - Massive cathedral reflections
+    3677,  // ~76.6ms - Arena-size reflections
+    3863,  // ~80.5ms - Stadium main body
+    4051,  // ~84.4ms - Very large cathedral
+    4241,  // ~88.4ms - Massive space main
+    4801   // ~100.0ms - Maximum hall size
+};
+
+// Prime numbers for early reflection all-pass filters (5ms to 20ms at 48kHz)
+// These create the initial dense cloud of early reflections before FDN processing
+const std::vector<int> FDNReverb::EARLY_REFLECTION_DELAYS = {
+    241,   // ~5.0ms at 48kHz - First wall reflection
+    317,   // ~6.6ms - Floor/ceiling reflection
+    431,   // ~9.0ms - Back wall reflection
+    563,   // ~11.7ms - Corner reflections
+    701,   // ~14.6ms - Complex room geometry
+    857,   // ~17.9ms - Large room early reflections
+    997,   // ~20.8ms - Maximum early reflection time
+    1151   // ~24.0ms - Extended early reflections
 };
 
 // DelayLine Implementation
@@ -59,16 +93,33 @@ void FDNReverb::DelayLine::clear() {
 // AllPassFilter Implementation
 FDNReverb::AllPassFilter::AllPassFilter(int delayLength, float gain)
     : delay_(delayLength)
-    , gain_(gain) {
+    , gain_(gain)
+    , lastOutput_(0.0f) {
 }
 
 float FDNReverb::AllPassFilter::process(float input) {
-    float delayedSignal = delay_.process(input + gain_ * delay_.process(0));
-    return -gain_ * input + delayedSignal;
+    // High-quality all-pass filter implementation for professional diffusion
+    // Based on Schroeder all-pass: y[n] = -g*x[n] + x[n-d] + g*y[n-d]
+    
+    // Get the delayed signal (what was written d samples ago)
+    float delayedSignal = delay_.process(0.0f);
+    
+    // Calculate all-pass output
+    float output = -gain_ * input + delayedSignal + gain_ * lastOutput_;
+    
+    // Feed the input + g*output back into the delay line for next iteration
+    float feedbackSignal = input + gain_ * output;
+    delay_.process(feedbackSignal);
+    
+    // Store output for next sample's feedback
+    lastOutput_ = output;
+    
+    return output;
 }
 
 void FDNReverb::AllPassFilter::clear() {
     delay_.clear();
+    lastOutput_ = 0.0f;
 }
 
 // DampingFilter Implementation
@@ -187,6 +238,9 @@ FDNReverb::FDNReverb(double sampleRate, int numDelayLines)
     : sampleRate_(sampleRate)
     , numDelayLines_(std::max(4, std::min(numDelayLines, 12)))
     , useInterpolation_(true)
+    , numEarlyReflections_(4) // Default: 4 early reflection stages
+    , lastRoomSize_(0.5f)
+    , needsBufferFlush_(false)
     , decayTime_(2.0f)
     , preDelay_(0.0f)
     , roomSize_(0.5f)
@@ -200,10 +254,14 @@ FDNReverb::FDNReverb(double sampleRate, int numDelayLines)
         delayLines_.emplace_back(std::make_unique<DelayLine>(MAX_DELAY_LENGTH));
     }
     
-    // Initialize diffusion filters (2 stages per delay line)
-    for (int i = 0; i < numDelayLines_ * 2; ++i) {
-        int diffusionLength = 50 + i * 20; // Varying lengths for smooth diffusion
-        diffusionFilters_.emplace_back(std::make_unique<AllPassFilter>(diffusionLength));
+    // Initialize high-density diffusion filters (4 stages for professional quality)
+    // Use prime-based lengths to avoid periodicities in diffusion
+    const std::vector<int> diffusionPrimes = {89, 109, 127, 149, 167, 191, 211, 233};
+    int diffusionStages = std::min(8, static_cast<int>(diffusionPrimes.size()));
+    
+    for (int i = 0; i < diffusionStages; ++i) {
+        float gain = 0.7f - (i * 0.03f); // Gradually decreasing gains for stability
+        diffusionFilters_.emplace_back(std::make_unique<AllPassFilter>(diffusionPrimes[i], gain));
     }
     
     // Initialize damping filters
@@ -230,19 +288,26 @@ FDNReverb::FDNReverb(double sampleRate, int numDelayLines)
     // Setup delay lengths and feedback matrix
     setupDelayLengths();
     setupFeedbackMatrix();
+    setupEarlyReflections();
 }
 
 FDNReverb::~FDNReverb() = default;
 
 void FDNReverb::processMono(const float* input, float* output, int numSamples) {
+    // Check for room size changes and flush buffers if needed
+    checkAndFlushBuffers();
+    
     for (int i = 0; i < numSamples; ++i) {
         // Apply pre-delay
         float preDelayedInput = preDelayLine_->process(input[i]);
         
-        // Process through diffusion filters
-        float diffusedInput = preDelayedInput;
-        for (int stage = 0; stage < 2; ++stage) {
-            diffusedInput = diffusionFilters_[stage]->process(diffusedInput);
+        // Process through early reflections (creates initial dense cloud)
+        float earlyReflected = processEarlyReflections(preDelayedInput);
+        
+        // Process through high-density diffusion filters (all stages)
+        float diffusedInput = earlyReflected;
+        for (auto& filter : diffusionFilters_) {
+            diffusedInput = filter->process(diffusedInput);
         }
         
         // Read from delay lines
@@ -274,6 +339,9 @@ void FDNReverb::processMono(const float* input, float* output, int numSamples) {
 
 void FDNReverb::processStereo(const float* inputL, const float* inputR, 
                              float* outputL, float* outputR, int numSamples) {
+    // Check for room size changes and flush buffers if needed
+    checkAndFlushBuffers();
+    
     for (int i = 0; i < numSamples; ++i) {
         // Mix input to mono for processing
         float monoInput = (inputL[i] + inputR[i]) * 0.5f;
@@ -281,12 +349,13 @@ void FDNReverb::processStereo(const float* inputL, const float* inputR,
         // Apply pre-delay
         float preDelayedInput = preDelayLine_->process(monoInput);
         
-        // Process through diffusion filters
-        float diffusedInput = preDelayedInput;
-        for (int stage = 0; stage < 4; ++stage) {
-            if (stage < diffusionFilters_.size()) {
-                diffusedInput = diffusionFilters_[stage]->process(diffusedInput);
-            }
+        // Process through early reflections (creates initial dense cloud)
+        float earlyReflected = processEarlyReflections(preDelayedInput);
+        
+        // Process through high-density diffusion filters (all stages for stereo)
+        float diffusedInput = earlyReflected;
+        for (auto& filter : diffusionFilters_) {
+            diffusedInput = filter->process(diffusedInput);
         }
         
         // Read from delay lines
@@ -346,17 +415,22 @@ void FDNReverb::setupDelayLengths() {
 }
 
 void FDNReverb::calculateDelayLengths(std::vector<int>& lengths, float baseSize) {
-    // Use prime-based delays scaled by room size
-    const float minDelay = 100.0f; // Minimum delay in samples
-    const float maxDelay = sampleRate_ * 0.08f * baseSize; // Max 80ms scaled by room size
+    // Use optimized prime delays scaled by room size and sample rate
+    float sampleRateScale = static_cast<float>(sampleRate_) / 48000.0f;
+    float roomScale = 0.5f + baseSize * 1.5f; // 0.5x to 2.0x scaling for room size
     
     for (int i = 0; i < numDelayLines_; ++i) {
-        if (i < PRIME_DELAYS.size()) {
-            float scaledDelay = minDelay + (PRIME_DELAYS[i] * baseSize);
-            lengths[i] = static_cast<int>(std::max(minDelay, std::min(scaledDelay, maxDelay)));
-        } else {
-            // Fallback for more delay lines than primes
-            lengths[i] = static_cast<int>(minDelay + (i * 100 * baseSize));
+        // Use prime delays with room size and sample rate compensation
+        int primeIndex = std::min(i, static_cast<int>(PRIME_DELAYS.size() - 1));
+        float scaledDelay = PRIME_DELAYS[primeIndex] * sampleRateScale * roomScale;
+        
+        // Ensure minimum and maximum bounds
+        lengths[i] = static_cast<int>(std::clamp(scaledDelay, 200.0f, 
+                                               static_cast<float>(MAX_DELAY_LENGTH - 1)));
+        
+        // Add slight variation to prevent perfect alignment (reduces metallic artifacts)
+        if (i > 0) {
+            lengths[i] += (i % 3) - 1; // Add -1, 0, or 1 samples variation
         }
     }
 }
@@ -365,44 +439,82 @@ void FDNReverb::setupFeedbackMatrix() {
     // Initialize feedback matrix
     feedbackMatrix_.resize(numDelayLines_, std::vector<float>(numDelayLines_));
     
-    if (numDelayLines_ == 8) {
-        // Optimized 8x8 Householder matrix
-        generateHouseholderMatrix();
-    } else {
-        // Simple matrix for other sizes
-        for (int i = 0; i < numDelayLines_; ++i) {
-            for (int j = 0; j < numDelayLines_; ++j) {
-                if (i == j) {
-                    feedbackMatrix_[i][j] = 0.0f; // No self-feedback
-                } else {
-                    feedbackMatrix_[i][j] = (i + j) % 2 == 0 ? 0.7f : -0.7f;
-                }
-            }
-        }
-    }
+    // Always use Householder matrix for professional quality
+    generateHouseholderMatrix();
     
-    // Scale matrix by decay time
-    float decayGain = std::pow(0.001f, 1.0f / (decayTime_ * sampleRate_ * 0.001f));
+    // Calculate decay gain for stable reverb tail
+    // RT60 formula: gain = 10^(-3 * block_time / RT60)
+    float blockTimeSeconds = 64.0f / static_cast<float>(sampleRate_); // Assuming 64-sample blocks
+    float rt60 = decayTime_; // RT60 is our decay time parameter
+    float decayGainLinear = std::pow(10.0f, -3.0f * blockTimeSeconds / rt60);
+    
+    // Apply additional scaling for stability and frequency-dependent decay
+    float stabilityScale = 0.98f; // Slightly under unity for guaranteed stability
+    float hfDecayScale = 1.0f - highFreqDamping_ * 0.15f; // HF decay faster
+    float finalGain = decayGainLinear * stabilityScale * hfDecayScale;
+    
+    // Ensure matrix gain is always less than 1.0 for stability
+    finalGain = std::min(finalGain, 0.95f);
+    
+    // Scale the entire matrix
     for (auto& row : feedbackMatrix_) {
         for (auto& element : row) {
-            element *= decayGain;
+            element *= finalGain;
         }
     }
 }
 
 void FDNReverb::generateHouseholderMatrix() {
-    // Generate normalized Householder matrix for natural reverb decay
-    const float scale = 2.0f / numDelayLines_;
+    // Generate proper orthogonal Householder matrix for uniform energy distribution
+    // This ensures no energy loss or gain in the feedback network
     
+    // Use fixed seed for reproducible results
+    std::mt19937 gen(42);
+    std::normal_distribution<float> dist(0.0f, 1.0f);
+    
+    // Generate random vector for Householder reflection
+    std::vector<float> v(numDelayLines_);
+    for (int i = 0; i < numDelayLines_; ++i) {
+        v[i] = dist(gen);
+    }
+    
+    // Normalize the vector
+    float norm = 0.0f;
+    for (float val : v) {
+        norm += val * val;
+    }
+    norm = std::sqrt(norm);
+    
+    for (float& val : v) {
+        val /= norm;
+    }
+    
+    // Create Householder matrix H = I - 2*v*v^T
+    // This creates an orthogonal matrix with determinant -1
     for (int i = 0; i < numDelayLines_; ++i) {
         for (int j = 0; j < numDelayLines_; ++j) {
-            if (i == j) {
-                feedbackMatrix_[i][j] = -1.0f + scale;
-            } else {
-                feedbackMatrix_[i][j] = scale;
-            }
+            float identity = (i == j) ? 1.0f : 0.0f;
+            feedbackMatrix_[i][j] = identity - 2.0f * v[i] * v[j];
         }
     }
+    
+    // Verify orthogonality in debug builds
+    #ifdef DEBUG
+    // Calculate H * H^T to verify it equals identity matrix
+    float maxError = 0.0f;
+    for (int i = 0; i < numDelayLines_; ++i) {
+        for (int j = 0; j < numDelayLines_; ++j) {
+            float dot = 0.0f;
+            for (int k = 0; k < numDelayLines_; ++k) {
+                dot += feedbackMatrix_[i][k] * feedbackMatrix_[j][k];
+            }
+            float expected = (i == j) ? 1.0f : 0.0f;
+            maxError = std::max(maxError, std::abs(dot - expected));
+        }
+    }
+    // Matrix should be orthogonal within floating point precision
+    assert(maxError < 1e-6f);
+    #endif
 }
 
 // Parameter setters
@@ -417,8 +529,19 @@ void FDNReverb::setPreDelay(float preDelaySamples) {
 }
 
 void FDNReverb::setRoomSize(float size) {
-    roomSize_ = std::max(0.0f, std::min(size, 1.0f));
+    float newSize = std::clamp(size, 0.0f, 1.0f);
+    
+    // Check if this is a significant change that requires buffer flush
+    if (std::abs(newSize - roomSize_) > ROOM_SIZE_CHANGE_THRESHOLD) {
+        printf("Significant room size change: %.3f -> %.3f\n", roomSize_, newSize);
+        needsBufferFlush_ = true;
+    }
+    
+    roomSize_ = newSize;
+    
+    // Reconfigure delay lengths and early reflections
     setupDelayLengths();
+    setupEarlyReflections();
 }
 
 void FDNReverb::setDensity(float density) {
@@ -499,6 +622,11 @@ void FDNReverb::clear() {
         delay->clear();
     }
     
+    // Clear early reflection filters
+    for (auto& filter : earlyReflectionFilters_) {
+        filter->clear();
+    }
+    
     preDelayLine_->clear();
     
     std::fill(delayOutputs_.begin(), delayOutputs_.end(), 0.0f);
@@ -569,6 +697,198 @@ void FDNReverb::CrossFeedProcessor::setStereoWidth(float width) {
 
 void FDNReverb::CrossFeedProcessor::clear() {
     delayStateL_ = delayStateR_ = 0.0f;
+}
+
+// Diagnostic and optimization methods for FDNReverb
+void FDNReverb::printFDNConfiguration() const {
+    printf("\n=== FDN Reverb Configuration ===\n");
+    printf("Delay Lines: %d\n", numDelayLines_);
+    printf("Sample Rate: %.1f Hz\n", sampleRate_);
+    printf("Diffusion Stages: %zu\n", diffusionFilters_.size());
+    printf("Early Reflections: %zu stages\n", earlyReflectionFilters_.size());
+    printf("Room Size: %.2f (last: %.2f)\n", roomSize_, lastRoomSize_);
+    printf("Decay Time: %.2f s\n", decayTime_);
+    printf("HF Damping: %.2f\n", highFreqDamping_);
+    printf("LF Damping: %.2f\n", lowFreqDamping_);
+    
+    printf("\nEarly Reflection Delays (samples @ %.0fHz):\n", sampleRate_);
+    for (size_t i = 0; i < earlyReflectionFilters_.size() && i < EARLY_REFLECTION_DELAYS.size(); ++i) {
+        float sampleRateScale = static_cast<float>(sampleRate_) / 48000.0f;
+        float roomScale = 0.3f + roomSize_ * 0.7f;
+        int scaledDelay = static_cast<int>(EARLY_REFLECTION_DELAYS[i] * sampleRateScale * roomScale);
+        float timeMs = (scaledDelay / static_cast<float>(sampleRate_)) * 1000.0f;
+        printf("  ER %zu: ~%d samples (%.1f ms)\n", i, scaledDelay, timeMs);
+    }
+    
+    printf("\nFDN Delay Lengths (samples @ %.0fHz):\n", sampleRate_);
+    for (int i = 0; i < numDelayLines_ && i < delayLines_.size(); ++i) {
+        // We can't access private delay_ directly, so estimate from PRIME_DELAYS
+        float sampleRateScale = static_cast<float>(sampleRate_) / 48000.0f;
+        float roomScale = 0.5f + roomSize_ * 1.5f;
+        int primeIndex = std::min(i, static_cast<int>(PRIME_DELAYS.size() - 1));
+        int estimatedLength = static_cast<int>(PRIME_DELAYS[primeIndex] * sampleRateScale * roomScale);
+        float timeMs = (estimatedLength / static_cast<float>(sampleRate_)) * 1000.0f;
+        printf("  Line %d: ~%d samples (%.1f ms)\n", i, estimatedLength, timeMs);
+    }
+    
+    printf("\nFeedback Matrix Properties:\n");
+    printf("  Matrix Size: %dx%d\n", static_cast<int>(feedbackMatrix_.size()), 
+           feedbackMatrix_.empty() ? 0 : static_cast<int>(feedbackMatrix_[0].size()));
+    
+    // Calculate matrix energy
+    float matrixEnergy = 0.0f;
+    for (const auto& row : feedbackMatrix_) {
+        for (float element : row) {
+            matrixEnergy += element * element;
+        }
+    }
+    printf("  Matrix Energy: %.6f (should be ≈ %d for orthogonal)\n", matrixEnergy, numDelayLines_);
+    printf("  Orthogonal: %s\n", verifyMatrixOrthogonality() ? "Yes" : "No");
+    printf("===============================\n\n");
+}
+
+bool FDNReverb::verifyMatrixOrthogonality() const {
+    if (feedbackMatrix_.empty() || feedbackMatrix_.size() != feedbackMatrix_[0].size()) {
+        return false;
+    }
+    
+    const float tolerance = 1e-4f;
+    int n = static_cast<int>(feedbackMatrix_.size());
+    
+    // Check if H * H^T = I (within tolerance)
+    for (int i = 0; i < n; ++i) {
+        for (int j = 0; j < n; ++j) {
+            float dot = 0.0f;
+            for (int k = 0; k < n; ++k) {
+                dot += feedbackMatrix_[i][k] * feedbackMatrix_[j][k];
+            }
+            
+            float expected = (i == j) ? 1.0f : 0.0f;
+            if (std::abs(dot - expected) > tolerance) {
+                return false;
+            }
+        }
+    }
+    
+    return true;
+}
+
+std::vector<int> FDNReverb::getCurrentDelayLengths() const {
+    std::vector<int> lengths(numDelayLines_);
+    
+    // Reconstruct the delay lengths using the same calculation as setupDelayLengths
+    float sampleRateScale = static_cast<float>(sampleRate_) / 48000.0f;
+    float roomScale = 0.5f + roomSize_ * 1.5f;
+    
+    for (int i = 0; i < numDelayLines_; ++i) {
+        int primeIndex = std::min(i, static_cast<int>(PRIME_DELAYS.size() - 1));
+        float scaledDelay = PRIME_DELAYS[primeIndex] * sampleRateScale * roomScale;
+        lengths[i] = static_cast<int>(std::clamp(scaledDelay, 200.0f, 
+                                               static_cast<float>(MAX_DELAY_LENGTH - 1)));
+        if (i > 0) {
+            lengths[i] += (i % 3) - 1; // Same variation as in calculateDelayLengths
+        }
+    }
+    
+    return lengths;
+}
+
+// Early Reflections Implementation
+void FDNReverb::setupEarlyReflections() {
+    // Clear existing early reflection filters
+    earlyReflectionFilters_.clear();
+    
+    // Create early reflection all-pass filters
+    for (int i = 0; i < numEarlyReflections_ && i < EARLY_REFLECTION_DELAYS.size(); ++i) {
+        // Scale delay lengths by room size and sample rate
+        float sampleRateScale = static_cast<float>(sampleRate_) / 48000.0f;
+        float roomScale = 0.3f + roomSize_ * 0.7f; // 0.3x to 1.0x scaling for early reflections
+        
+        int scaledDelay = static_cast<int>(EARLY_REFLECTION_DELAYS[i] * sampleRateScale * roomScale);
+        scaledDelay = std::clamp(scaledDelay, 10, 2400); // 10 samples to 50ms max
+        
+        // Decreasing gain for stability: 0.7, 0.65, 0.6, 0.55
+        float gain = 0.75f - (i * 0.05f);
+        
+        earlyReflectionFilters_.emplace_back(std::make_unique<AllPassFilter>(scaledDelay, gain));
+    }
+    
+    printf("Early Reflections: %d stages configured\n", static_cast<int>(earlyReflectionFilters_.size()));
+}
+
+float FDNReverb::processEarlyReflections(float input) {
+    // Process input through early reflection all-pass filters in series
+    float processed = input;
+    for (auto& filter : earlyReflectionFilters_) {
+        processed = filter->process(processed);
+    }
+    return processed;
+}
+
+// Buffer Management for Size Changes
+void FDNReverb::checkAndFlushBuffers() {
+    // Check if room size has changed significantly
+    float sizeDelta = std::abs(roomSize_ - lastRoomSize_);
+    
+    if (sizeDelta > ROOM_SIZE_CHANGE_THRESHOLD) {
+        printf("Room size change detected: %.3f -> %.3f (delta: %.3f)\n", 
+               lastRoomSize_, roomSize_, sizeDelta);
+        printf("Flushing all buffers to prevent artifacts...\n");
+        
+        needsBufferFlush_ = true;
+        lastRoomSize_ = roomSize_;
+    }
+    
+    if (needsBufferFlush_) {
+        flushAllBuffers();
+        needsBufferFlush_ = false;
+    }
+}
+
+void FDNReverb::flushAllBuffers() {
+    // Flush all delay line buffers to prevent artifacts from size changes
+    // This is critical for professional quality as noted in AD 480 manual
+    
+    // Clear main FDN delay lines
+    for (auto& delay : delayLines_) {
+        delay->clear();
+    }
+    
+    // Clear diffusion filters
+    for (auto& filter : diffusionFilters_) {
+        filter->clear();
+    }
+    
+    // Clear early reflection filters
+    for (auto& filter : earlyReflectionFilters_) {
+        filter->clear();
+    }
+    
+    // Clear damping filters
+    for (auto& filter : dampingFilters_) {
+        filter->clear();
+    }
+    
+    // Clear modulated delays
+    for (auto& delay : modulatedDelays_) {
+        delay->clear();
+    }
+    
+    // Clear pre-delay
+    if (preDelayLine_) {
+        preDelayLine_->clear();
+    }
+    
+    // Clear cross-feed processor
+    if (crossFeedProcessor_) {
+        crossFeedProcessor_->clear();
+    }
+    
+    // Clear processing buffers
+    std::fill(delayOutputs_.begin(), delayOutputs_.end(), 0.0f);
+    std::fill(matrixOutputs_.begin(), matrixOutputs_.end(), 0.0f);
+    
+    printf("All buffers flushed successfully\n");
 }
 
 } // namespace VoiceMonitor
