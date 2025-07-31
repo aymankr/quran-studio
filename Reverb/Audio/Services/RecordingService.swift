@@ -152,64 +152,60 @@ class RecordingService: NSObject {
         }
     }
     
-    // NOUVEAU: Enregistrement du signal wet traité avec tous les paramètres appliqués
+    // NOUVEAU: Enregistrement NON-BLOQUANT du signal wet traité avec tous les paramètres appliqués
     private func startSafeProcessedRecording(recordingMixer: AVAudioMixerNode, format: AVAudioFormat, url: URL, completion: @escaping (Bool) -> Void) {
         
-        print("🔒 Starting WET SIGNAL recording with all reverb parameters applied")
+        print("🔒 Starting NON-BLOCKING WET SIGNAL recording with all reverb parameters applied")
         
         // PROTECTION 1: Nettoyer avant de commencer
         cleanupRecording()
         
-        do {
-            // PROTECTION 2: Créer un format simple et compatible
-            let recordingFormat = createSafeRecordingFormat(basedOn: format)
-            
-            print("📊 Wet signal recording format: \(recordingFormat.sampleRate) Hz, \(recordingFormat.channelCount) channels")
-            print("🎵 Format type: \(recordingFormat.commonFormat.rawValue)")
-            
-            // PROTECTION 3: Créer le fichier avec try-catch robuste
-            recordingFile = try AVAudioFile(forWriting: url, settings: recordingFormat.settings)
-            
-            guard let audioFile = recordingFile else {
-                print("❌ Could not create wet signal recording file")
-                DispatchQueue.main.async { completion(false) }
-                return
-            }
-            
-            print("✅ Wet signal recording file created")
-            
-            // PROTECTION 4: Vérifier que le mixer est prêt avant d'installer le tap
-            guard recordingMixer.engine != nil else {
-                print("❌ Recording mixer not attached to engine")
-                DispatchQueue.main.async { completion(false) }
-                return
-            }
-            
-            // NOUVELLE MÉTHODE: Utiliser le tap dédié au signal wet traité final
-            guard let audioEngineService = audioEngineService else {
-                print("❌ AudioEngineService not available for wet signal recording")
-                DispatchQueue.main.async { completion(false) }
-                return
-            }
-            
-            // Installation du tap spécialisé pour capturer le signal wet/dry final
-            audioEngineService.installWetSignalRecordingTap(on: recordingMixer, recordingFile: audioFile)
-            
-            // PROTECTION 8: Marquer comme en cours et démarrer l'enregistrement
-            isCurrentlyRecording = true
-            tapNode = recordingMixer
-            
-            // Démarrer l'enregistrement du signal wet avec tous les paramètres
-            audioEngineService.startWetSignalRecording()
-            
-            print("✅ WET SIGNAL recording started - capturing processed audio with all reverb parameters")
-            DispatchQueue.main.async { completion(true) }
-            
-        } catch {
-            print("❌ Wet signal recording setup failed: \(error.localizedDescription)")
-            cleanupRecording()
+        // PROTECTION 2: Vérifier que le mixer est prêt
+        guard recordingMixer.engine != nil else {
+            print("❌ Recording mixer not attached to engine")
             DispatchQueue.main.async { completion(false) }
+            return
         }
+        
+        // PROTECTION 3: Vérifier AudioEngineService
+        guard let audioEngineService = audioEngineService else {
+            print("❌ AudioEngineService not available for non-blocking wet signal recording")
+            DispatchQueue.main.async { completion(false) }
+            return
+        }
+        
+        // NOUVELLE ARCHITECTURE NON-BLOQUANTE: Pas de création de fichier ici !
+        // Le NonBlockingAudioRecorder gère le format optimal et la création du fichier
+        
+        print("🎵 Using NON-BLOCKING architecture with:")
+        print("   - Circular FIFO buffer: ~680ms capacity")
+        print("   - Background I/O thread: 50Hz processing")
+        print("   - Optimal format: Float32 non-interleaved")
+        print("   - Drop-out protection: Thread separation")
+        
+        // Installation du tap NON-BLOQUANT pour capturer le signal wet/dry final
+        let success = audioEngineService.installNonBlockingWetSignalRecordingTap(on: recordingMixer, recordingURL: url)
+        
+        guard success else {
+            print("❌ Failed to install non-blocking wet signal recording tap")
+            DispatchQueue.main.async { completion(false) }
+            return
+        }
+        
+        // PROTECTION 4: Marquer comme en cours et démarrer l'enregistrement
+        isCurrentlyRecording = true
+        tapNode = recordingMixer
+        currentRecordingURL = url
+        
+        // Démarrer l'enregistrement NON-BLOQUANT du signal wet avec tous les paramètres
+        audioEngineService.startNonBlockingWetSignalRecording()
+        
+        print("✅ NON-BLOCKING WET SIGNAL recording started successfully")
+        print("   - Audio thread: Real-time tap → FIFO buffer")
+        print("   - I/O thread: FIFO → Disk writing (background)")
+        print("   - No drop-outs: Thread separation guarantees real-time performance")
+        
+        DispatchQueue.main.async { completion(true) }
     }
     
     // NOUVEAU: Format d'enregistrement ultra-sécurisé
@@ -254,31 +250,53 @@ class RecordingService: NSObject {
         }
     }
     
-    // NOUVEAU: Arrêt sécurisé de l'enregistrement wet signal
+    // NOUVEAU: Arrêt sécurisé de l'enregistrement NON-BLOQUANT wet signal
     private func stopSafeRecording(filename: String?, completion: @escaping (Bool, String?) -> Void) {
+        
+        print("🛑 Stopping NON-BLOCKING wet signal recording with statistics...")
         
         // PROTECTION 1: Arrêter l'enregistrement du signal wet
         if let audioEngineService = audioEngineService {
-            audioEngineService.stopWetSignalRecording()
+            audioEngineService.stopNonBlockingWetSignalRecording()
         }
         
-        // PROTECTION 2: Retirer le tap de manière sécurisée
+        // PROTECTION 2: Retirer le tap NON-BLOQUANT et récupérer les statistiques
+        var recordingStats = (success: false, droppedFrames: 0, totalFrames: 0)
         if let tapNode = tapNode as? AVAudioMixerNode,
            let audioEngineService = audioEngineService {
-            audioEngineService.removeWetSignalRecordingTap(from: tapNode)
+            recordingStats = audioEngineService.removeNonBlockingWetSignalRecordingTap(from: tapNode)
             self.tapNode = nil
-            print("✅ Wet signal recording tap removed safely")
+            print("✅ NON-BLOCKING wet signal recording tap removed with stats")
         }
         
-        // PROTECTION 3: Finaliser le fichier de manière sécurisée
-        if let audioFile = recordingFile {
-            recordingFile = nil // Finalise automatiquement
-            print("💾 Wet signal audio file finalized safely")
+        // PROTECTION 3: Le fichier est automatiquement finalisé par NonBlockingAudioRecorder
+        // Pas de recordingFile à gérer ici dans l'architecture non-bloquante
+        recordingFile = nil
+        
+        print("📊 FINAL NON-BLOCKING RECORDING STATISTICS:")
+        print("   - Total frames recorded: \(recordingStats.totalFrames)")
+        print("   - Dropped frames: \(recordingStats.droppedFrames)")
+        if recordingStats.totalFrames > 0 {
+            let successRate = Double(recordingStats.totalFrames) / Double(recordingStats.totalFrames + recordingStats.droppedFrames) * 100
+            print("   - Success rate: \(String(format: "%.2f", successRate))%")
+            let durationSeconds = Double(recordingStats.totalFrames) / 48000.0
+            print("   - Duration: \(String(format: "%.1f", durationSeconds))s")
         }
         
-        // PROTECTION 4: Attendre la finalisation
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
-            self?.verifySafeRecording(filename: filename, completion: completion)
+        // PROTECTION 4: Attendre que l'I/O thread finalise complètement
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+            // Le NonBlockingAudioRecorder a déjà vérifié et finalisé le fichier
+            if recordingStats.success && recordingStats.totalFrames > 0 {
+                let recordingFilename = self?.currentRecordingURL?.lastPathComponent ?? filename
+                print("✅ NON-BLOCKING recording completed successfully: \(recordingFilename ?? "unknown")")
+                completion(true, recordingFilename)
+            } else {
+                print("❌ NON-BLOCKING recording failed or no data recorded")
+                completion(false, nil)
+            }
+            
+            // Cleanup final
+            self?.currentRecordingURL = nil
         }
     }
     

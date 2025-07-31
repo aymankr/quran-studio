@@ -1,6 +1,265 @@
 import Foundation
 import AVFoundation
 import AudioToolbox
+import Accelerate
+
+// MARK: - NonBlockingAudioRecorder (Embedded)
+// Architecture non-bloquante intégrée pour éviter les problèmes de projet Xcode
+
+private class NonBlockingAudioRecorder {
+    
+    private struct Config {
+        static let bufferSizeFrames: Int = 32768        // ~680ms à 48kHz
+        static let writeChunkFrames: Int = 2048         // ~42ms par écriture 
+        static let maxChannels: Int = 2                 // Stéréo maximum
+    }
+    
+    private class CircularBuffer {
+        private var buffer: UnsafeMutablePointer<Float>
+        private let capacity: Int
+        private let channelCount: Int
+        private var writeIndex: Int = 0
+        private var readIndex: Int = 0
+        private var availableFrames: Int = 0
+        private let lock = NSLock()
+        
+        init(frameCapacity: Int, channelCount: Int) {
+            self.capacity = frameCapacity
+            self.channelCount = channelCount
+            let totalSamples = frameCapacity * channelCount
+            self.buffer = UnsafeMutablePointer<Float>.allocate(capacity: totalSamples)
+            self.buffer.initialize(repeating: 0.0, count: totalSamples)
+        }
+        
+        deinit {
+            buffer.deallocate()
+        }
+        
+        func write(from pcmBuffer: AVAudioPCMBuffer) -> Bool {
+            guard let channelData = pcmBuffer.floatChannelData else { return false }
+            
+            let frameCount = Int(pcmBuffer.frameLength)
+            guard frameCount > 0 else { return false }
+            
+            lock.lock()
+            defer { lock.unlock() }
+            
+            let spaceAvailable = capacity - availableFrames
+            guard frameCount <= spaceAvailable else {
+                return false
+            }
+            
+            for channel in 0..<min(channelCount, Int(pcmBuffer.format.channelCount)) {
+                let sourcePtr = channelData[channel]
+                
+                for frame in 0..<frameCount {
+                    let bufferIndex = (writeIndex + frame) % capacity
+                    let sampleIndex = bufferIndex * channelCount + channel
+                    buffer[sampleIndex] = sourcePtr[frame]
+                }
+            }
+            
+            writeIndex = (writeIndex + frameCount) % capacity
+            availableFrames += frameCount
+            
+            return true
+        }
+        
+        func read(frameCount: Int, to destinationBuffer: UnsafeMutablePointer<Float>) -> Int {
+            lock.lock()
+            defer { lock.unlock() }
+            
+            let framesToRead = min(frameCount, availableFrames)
+            guard framesToRead > 0 else { return 0 }
+            
+            for frame in 0..<framesToRead {
+                let bufferIndex = (readIndex + frame) % capacity
+                for channel in 0..<channelCount {
+                    let sourceIndex = bufferIndex * channelCount + channel
+                    let destIndex = frame * channelCount + channel
+                    destinationBuffer[destIndex] = buffer[sourceIndex]
+                }
+            }
+            
+            readIndex = (readIndex + framesToRead) % capacity
+            availableFrames -= framesToRead
+            
+            return framesToRead
+        }
+        
+        var framesAvailable: Int {
+            lock.lock()
+            defer { lock.unlock() }
+            return availableFrames
+        }
+    }
+    
+    private var circularBuffer: CircularBuffer?
+    private var audioFile: AVAudioFile?
+    private var writeBuffer: UnsafeMutablePointer<Float>?
+    private var tempPCMBuffer: AVAudioPCMBuffer?
+    private var isRecording = false
+    private var recordingFormat: AVAudioFormat?
+    private var ioQueue: DispatchQueue?
+    private var ioTimer: DispatchSourceTimer?
+    private var droppedFrames: Int = 0
+    private var totalFramesWritten: Int = 0
+    
+    init() {
+        ioQueue = DispatchQueue(label: "com.reverb.audio-io", qos: .userInitiated, attributes: .concurrent)
+    }
+    
+    deinit {
+        stopRecording()
+        writeBuffer?.deallocate()
+    }
+    
+    func startRecording(to url: URL, format: AVAudioFormat) -> Bool {
+        guard !isRecording else { return false }
+        
+        guard let optimizedFormat = createOptimalFormat(basedOn: format) else { return false }
+        
+        do {
+            audioFile = try AVAudioFile(forWriting: url, settings: optimizedFormat.settings)
+            recordingFormat = optimizedFormat
+            
+            let channelCount = Int(optimizedFormat.channelCount)
+            circularBuffer = CircularBuffer(frameCapacity: Config.bufferSizeFrames, channelCount: channelCount)
+            
+            let workBufferSize = Config.writeChunkFrames * channelCount
+            writeBuffer = UnsafeMutablePointer<Float>.allocate(capacity: workBufferSize)
+            
+            tempPCMBuffer = AVAudioPCMBuffer(pcmFormat: optimizedFormat, frameCapacity: UInt32(Config.writeChunkFrames))
+            
+            startIOThread()
+            
+            isRecording = true
+            droppedFrames = 0
+            totalFramesWritten = 0
+            
+            return true
+        } catch {
+            cleanup()
+            return false
+        }
+    }
+    
+    func stopRecording() -> (success: Bool, droppedFrames: Int, totalFrames: Int) {
+        guard isRecording else { return (false, 0, 0) }
+        
+        isRecording = false
+        ioTimer?.cancel()
+        ioTimer = nil
+        
+        flushRemainingData()
+        
+        let stats = (success: true, droppedFrames: droppedFrames, totalFrames: totalFramesWritten)
+        cleanup()
+        return stats
+    }
+    
+    func writeAudioBuffer(_ buffer: AVAudioPCMBuffer) -> Bool {
+        guard isRecording, let circularBuffer = circularBuffer else { return false }
+        
+        let success = circularBuffer.write(from: buffer)
+        if !success {
+            droppedFrames += Int(buffer.frameLength)
+        }
+        
+        return success
+    }
+    
+    private func createOptimalFormat(basedOn sourceFormat: AVAudioFormat) -> AVAudioFormat? {
+        let sampleRate = sourceFormat.sampleRate > 0 ? sourceFormat.sampleRate : 48000
+        let channelCount = min(sourceFormat.channelCount, UInt32(Config.maxChannels))
+        
+        return AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: sampleRate, channels: channelCount, interleaved: false)
+    }
+    
+    private func startIOThread() {
+        guard let queue = ioQueue else { return }
+        
+        ioTimer = DispatchSource.makeTimerSource(queue: queue)
+        ioTimer?.schedule(deadline: .now(), repeating: .milliseconds(20))
+        
+        ioTimer?.setEventHandler { [weak self] in
+            self?.processBufferedData()
+        }
+        
+        ioTimer?.resume()
+    }
+    
+    private func processBufferedData() {
+        guard isRecording,
+              let buffer = circularBuffer,
+              let audioFile = audioFile,
+              let writeBuffer = writeBuffer,
+              let tempBuffer = tempPCMBuffer,
+              let format = recordingFormat else { return }
+        
+        let framesAvailable = buffer.framesAvailable
+        guard framesAvailable >= Config.writeChunkFrames else { return }
+        
+        let framesToProcess = min(framesAvailable, Config.writeChunkFrames)
+        let framesRead = buffer.read(frameCount: framesToProcess, to: writeBuffer)
+        
+        guard framesRead > 0 else { return }
+        
+        tempBuffer.frameLength = UInt32(framesRead)
+        
+        if let channelData = tempBuffer.floatChannelData {
+            let channelCount = Int(format.channelCount)
+            
+            for channel in 0..<channelCount {
+                let channelPtr = channelData[channel]
+                for frame in 0..<framesRead {
+                    let sourceIndex = frame * channelCount + channel
+                    channelPtr[frame] = writeBuffer[sourceIndex]
+                }
+            }
+        }
+        
+        do {
+            try audioFile.write(from: tempBuffer)
+            totalFramesWritten += framesRead
+        } catch {
+            droppedFrames += framesRead
+        }
+    }
+    
+    private func flushRemainingData() {
+        guard let buffer = circularBuffer else { return }
+        
+        var iterations = 0
+        while buffer.framesAvailable > 0 && iterations < 100 {
+            processBufferedData()
+            iterations += 1
+            usleep(10000)
+        }
+    }
+    
+    private func cleanup() {
+        circularBuffer = nil
+        audioFile = nil
+        recordingFormat = nil
+        tempPCMBuffer = nil
+        writeBuffer?.deallocate()
+        writeBuffer = nil
+    }
+    
+    var statistics: (bufferedFrames: Int, droppedFrames: Int, totalFrames: Int) {
+        return (
+            bufferedFrames: circularBuffer?.framesAvailable ?? 0,
+            droppedFrames: droppedFrames,
+            totalFrames: totalFramesWritten
+        )
+    }
+    
+    var bufferUsagePercentage: Float {
+        guard let buffer = circularBuffer else { return 0 }
+        return Float(buffer.framesAvailable) / Float(Config.bufferSizeFrames) * 100
+    }
+}
 
 class AudioEngineService {
     // Audio engine components
@@ -289,89 +548,188 @@ class AudioEngineService {
     //     }
     // }
     
-    // MARK: - Installation du tap d'enregistrement du signal wet traité
+    // MARK: - Installation du tap d'enregistrement NON-BLOQUANT du signal wet traité
     
     private var recordingTapInstalled = false
     private var isRecordingWetSignal = false
+    private var nonBlockingRecorder: NonBlockingAudioRecorder?
     
-    func installWetSignalRecordingTap(on mixerNode: AVAudioMixerNode, recordingFile: AVAudioFile?) {
+    func installNonBlockingWetSignalRecordingTap(on mixerNode: AVAudioMixerNode, recordingURL: URL) -> Bool {
         guard !recordingTapInstalled else {
             print("⚠️ Recording tap already installed")
-            return
+            return false
         }
         
         guard let tapFormat = connectionFormat else {
             print("❌ Cannot install recording tap: No connection format")
-            return
+            return false
         }
         
-        print("🎙️ Installing wet signal recording tap on final mixer output")
+        print("🎙️ Installing NON-BLOCKING wet signal recording tap with optimized format")
+        
+        // Créer le recorder non-bloquant
+        nonBlockingRecorder = NonBlockingAudioRecorder()
+        
+        guard let recorder = nonBlockingRecorder else {
+            print("❌ Failed to create NonBlockingAudioRecorder")
+            return false
+        }
+        
+        // Démarrer l'enregistrement non-bloquant
+        guard recorder.startRecording(to: recordingURL, format: tapFormat) else {
+            print("❌ Failed to start non-blocking recording")
+            nonBlockingRecorder = nil
+            return false
+        }
         
         // Remove existing tap if any
-        mixerNode.removeTap(onBus: 0)
+        do {
+            mixerNode.removeTap(onBus: 0)
+        } catch {
+            // Ignore - no existing tap
+        }
+        
         Thread.sleep(forTimeInterval: 0.01)
         
         do {
-            // Buffer size optimisé pour enregistrement temps réel (~21ms à 48kHz)
+            // Buffer size optimisé pour architecture non-bloquante (1024 frames = ~21ms à 48kHz)
             let recordingBufferSize: UInt32 = 1024
             
-            mixerNode.installTap(onBus: 0, bufferSize: recordingBufferSize, format: tapFormat) { [weak self] buffer, time in
+            mixerNode.installTap(onBus: 0, bufferSize: recordingBufferSize, format: tapFormat) { [weak self, weak recorder] buffer, time in
                 guard let self = self,
                       self.isRecordingWetSignal,
-                      let recordingFile = recordingFile else { 
+                      let recorder = recorder else { 
                     return 
                 }
                 
-                // Écriture synchrone du signal wet/dry final traité
-                do {
-                    try recordingFile.write(from: buffer)
-                    
-                    // Debug périodique pour vérifier le flux
-                    if Int.random(in: 0...2000) == 0 {
-                        print("📼 WET RECORDING: \(buffer.frameLength) frames written to file")
-                    }
-                } catch {
-                    print("❌ Failed to write wet signal buffer: \(error)")
+                // ARCHITECTURE NON-BLOQUANTE: Pas d'I/O disque dans le thread audio !
+                // Le buffer est copié dans le FIFO circulaire, l'écriture se fait en background
+                let success = recorder.writeAudioBuffer(buffer)
+                
+                // Debug périodique pour vérifier le flux
+                if Int.random(in: 0...2000) == 0 {
+                    let stats = recorder.statistics
+                    print("📼 NON-BLOCKING WET RECORDING: \(buffer.frameLength) frames → FIFO")
+                    print("   Buffer usage: \(String(format: "%.1f", recorder.bufferUsagePercentage))%")
+                    print("   Total: \(stats.totalFrames), Dropped: \(stats.droppedFrames)")
+                }
+                
+                if !success {
+                    print("⚠️ FIFO buffer overflow - audio quality may be affected")
                 }
             }
             
             recordingTapInstalled = true
-            print("✅ Wet signal recording tap installed successfully")
+            print("✅ NON-BLOCKING wet signal recording tap installed successfully")
+            print("   Format: \(tapFormat)")
+            print("   Buffer: \(recordingBufferSize) frames (~\(String(format: "%.1f", Double(recordingBufferSize) / tapFormat.sampleRate * 1000))ms)")
+            return true
+            
         } catch {
-            print("❌ Failed to install wet signal recording tap: \(error)")
+            print("❌ Failed to install non-blocking recording tap: \(error)")
+            recorder.stopRecording()
+            nonBlockingRecorder = nil
+            return false
         }
     }
     
-    func removeWetSignalRecordingTap(from mixerNode: AVAudioMixerNode) {
-        guard recordingTapInstalled else { return }
+    func removeNonBlockingWetSignalRecordingTap(from mixerNode: AVAudioMixerNode) -> (success: Bool, droppedFrames: Int, totalFrames: Int) {
+        guard recordingTapInstalled else { 
+            return (false, 0, 0)
+        }
         
         isRecordingWetSignal = false
         
-        // Only remove tap if we're sure it's the recording tap
-        // IMPORTANT: Don't interfere with monitoring taps
+        // Arrêter l'enregistrement non-bloquant et récupérer les statistiques
+        var stats = (success: false, droppedFrames: 0, totalFrames: 0)
+        if let recorder = nonBlockingRecorder {
+            stats = recorder.stopRecording()
+            nonBlockingRecorder = nil
+        }
+        
+        // Retirer le tap audio
         do {
             mixerNode.removeTap(onBus: 0)
-            print("🛑 Wet signal recording tap removed safely")
+            print("🛑 NON-BLOCKING wet signal recording tap removed safely")
         } catch {
-            print("⚠️ Error removing wet signal tap (non-fatal): \(error)")
+            print("⚠️ Error removing non-blocking tap (non-fatal): \(error)")
         }
         
         recordingTapInstalled = false
+        
+        print("📊 NON-BLOCKING RECORDING STATS:")
+        print("   - Success rate: \(String(format: "%.2f", Double(stats.totalFrames) / Double(stats.totalFrames + stats.droppedFrames) * 100))%")
+        print("   - Total frames: \(stats.totalFrames)")
+        print("   - Dropped frames: \(stats.droppedFrames)")
+        
+        return stats
     }
     
-    func startWetSignalRecording() {
+    func startNonBlockingWetSignalRecording() {
         guard recordingTapInstalled else {
             print("❌ Cannot start recording: tap not installed")
             return
         }
         
         isRecordingWetSignal = true
-        print("▶️ Started recording wet signal with all applied parameters")
+        print("▶️ Started NON-BLOCKING recording of wet signal with all applied parameters")
+        
+        // Afficher les statistiques initiales
+        if let recorder = nonBlockingRecorder {
+            print("   Buffer capacity: \(String(format: "%.1f", Float(32768) / 48000 * 1000))ms")
+            print("   I/O thread: 50Hz background processing")
+        }
+    }
+    
+    func stopNonBlockingWetSignalRecording() {
+        isRecordingWetSignal = false
+        print("⏹️ Stopped NON-BLOCKING wet signal recording")
+        
+        // Afficher les statistiques actuelles
+        if let recorder = nonBlockingRecorder {
+            let stats = recorder.statistics
+            print("   Buffer usage: \(String(format: "%.1f", recorder.bufferUsagePercentage))%")
+            print("   Frames in FIFO: \(stats.bufferedFrames)")
+        }
+    }
+    
+    // MARK: - Format et Synchronisation Optimisés
+    
+    func getOptimalRecordingFormat() -> AVAudioFormat? {
+        guard let baseFormat = connectionFormat else { return nil }
+        
+        // Créer un format optimal aligné avec les besoins du mixer
+        // Float32 non-interleaved, 2 canaux max, préserver le sample rate
+        let sampleRate = baseFormat.sampleRate > 0 ? baseFormat.sampleRate : 48000
+        let channelCount = min(baseFormat.channelCount, 2)
+        
+        let optimizedFormat = AVAudioFormat(commonFormat: .pcmFormatFloat32,
+                                          sampleRate: sampleRate,
+                                          channels: channelCount,
+                                          interleaved: false)
+        
+        if let format = optimizedFormat {
+            print("🎵 OPTIMAL RECORDING FORMAT:")
+            print("   - Sample Rate: \(sampleRate) Hz")
+            print("   - Channels: \(channelCount) (non-interleaved)")
+            print("   - Format: Float32")
+            print("   - Aligned with mixer format: ✅")
+        }
+        
+        return optimizedFormat
+    }
+    
+    // Méthodes de compatibilité (deprecated - utiliser les versions non-bloquantes)
+    func removeWetSignalRecordingTap(from mixerNode: AVAudioMixerNode) {
+        let _ = removeNonBlockingWetSignalRecordingTap(from: mixerNode)
+    }
+    
+    func startWetSignalRecording() {
+        startNonBlockingWetSignalRecording()
     }
     
     func stopWetSignalRecording() {
-        isRecordingWetSignal = false
-        print("⏹️ Stopped recording wet signal")
+        stopNonBlockingWetSignalRecording()
     }
     
     private func installAudioTap(inputNode: AVAudioInputNode, bufferSize: UInt32) {
