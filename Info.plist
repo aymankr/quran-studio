@@ -1,0 +1,257 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIconFile</key>
+	<string></string>
+	<key>CFBundleIconName</key>
+	<string>AppIcon</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>$(PRODUCT_NAME)</string>
+	<key>CFBundlePackageType</key>
+	<string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.0</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>$(MACOSX_DEPLOYMENT_TARGET)</string>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.music</string>
+	
+	<!-- iOS-specific configurations -->
+	<key>CFBundleSupportedPlatforms</key>
+	<array>
+		<string>MacOSX</string>
+		<string>iPhoneOS</string>
+	</array>
+	
+	<!-- Minimum iOS version -->
+	<key>MinimumOSVersion</key>
+	<string>14.0</string>
+	
+	<!-- Required device capabilities -->
+	<key>UIRequiredDeviceCapabilities</key>
+	<array>
+		<string>microphone</string>
+		<string>audio-processing</string>
+	</array>
+	
+	<!-- Microphone permission for iOS -->
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Reverb nécessite l'accès au microphone pour le traitement audio en temps réel, l'enregistrement et l'application d'effets de réverbération. Cette autorisation est essentielle pour toutes les fonctionnalités de l'application.</string>
+	
+	<!-- Background audio modes -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>audio</string>
+		<string>background-processing</string>
+	</array>
+	
+	<!-- Audio session category -->
+	<key>AVAudioSessionCategory</key>
+	<string>AVAudioSessionCategoryPlayAndRecord</string>
+	
+	<!-- Audio session options -->
+	<key>AVAudioSessionCategoryOptions</key>
+	<array>
+		<string>AVAudioSessionCategoryOptionDefaultToSpeaker</string>
+		<string>AVAudioSessionCategoryOptionAllowBluetooth</string>
+		<string>AVAudioSessionCategoryOptionAllowBluetoothA2DP</string>
+		<string>AVAudioSessionCategoryOptionMixWithOthers</string>
+	</array>
+	
+	<!-- iOS Interface orientations -->
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	
+	<key>UISupportedInterfaceOrientations~ipad</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationPortraitUpsideDown</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	
+	<!-- Launch screen -->
+	<key>UILaunchStoryboardName</key>
+	<string>LaunchScreen</string>
+	
+	<!-- Status bar style -->
+	<key>UIStatusBarStyle</key>
+	<string>UIStatusBarStyleDefault</string>
+	
+	<!-- Hide status bar -->
+	<key>UIStatusBarHidden</key>
+	<false/>
+	
+	<!-- Scene configuration (iOS 13+) -->
+	<key>UIApplicationSceneManifest</key>
+	<dict>
+		<key>UIApplicationSupportsMultipleScenes</key>
+		<true/>
+		<key>UISceneConfigurations</key>
+		<dict>
+			<key>UIWindowSceneSessionRoleApplication</key>
+			<array>
+				<dict>
+					<key>UISceneConfigurationName</key>
+					<string>Default Configuration</string>
+					<key>UISceneDelegateClassName</key>
+					<string>$(PRODUCT_MODULE_NAME).SceneDelegate</string>
+				</dict>
+			</array>
+		</dict>
+	</dict>
+	
+	<!-- App Transport Security -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<false/>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+	
+	<!-- Document types (for file import) -->
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Audio Files</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>public.audio</string>
+				<string>com.microsoft.waveform-audio</string>
+				<string>public.aiff-audio</string>
+				<string>com.apple.coreaudio-format</string>
+				<string>public.mp3</string>
+				<string>com.apple.m4a-audio</string>
+				<string>public.aac-audio</string>
+			</array>
+			<key>LSHandlerRank</key>
+			<string>Owner</string>
+		</dict>
+	</array>
+	
+	<!-- Exported UTIs -->
+	<key>UTExportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.reverb.processed-audio</string>
+			<key>UTTypeDescription</key>
+			<string>Reverb Processed Audio</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.audio</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>rvb</string>
+				</array>
+				<key>public.mime-type</key>
+				<array>
+					<string>audio/x-reverb</string>
+				</array>
+			</dict>
+		</dict>
+	</array>
+	
+	<!-- Privacy descriptions for additional features -->
+	<key>NSCameraUsageDescription</key>
+	<string>Reverb peut utiliser la caméra pour enregistrer des sessions vidéo avec audio traité (fonctionnalité optionnelle).</string>
+	
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Reverb peut accéder à la photothèque pour exporter des sessions audio avec métadonnées visuelles (fonctionnalité optionnelle).</string>
+	
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Reverb peut utiliser la localisation pour taguer les enregistrements avec des informations de lieu (fonctionnalité optionnelle).</string>
+	
+	<!-- File provider extensions -->
+	<key>NSExtension</key>
+	<dict>
+		<key>NSExtensionPointIdentifier</key>
+		<string>com.apple.fileprovider-ui</string>
+		<key>NSExtensionMainStoryboard</key>
+		<string>FileProviderUI</string>
+	</dict>
+	
+	<!-- Handoff support -->
+	<key>NSUserActivityTypes</key>
+	<array>
+		<string>com.reverb.realtime-processing</string>
+		<string>com.reverb.offline-processing</string>
+		<string>com.reverb.batch-processing</string>
+	</array>
+	
+	<!-- Core Audio optimizations -->
+	<key>AudioComponentBundle</key>
+	<string>com.reverb.audiounit</string>
+	
+	<!-- Performance optimizations -->
+	<key>UIRequiresFullScreen</key>
+	<false/>
+	
+	<key>UIViewControllerBasedStatusBarAppearance</key>
+	<true/>
+	
+	<!-- Metal performance shaders (for advanced audio processing) -->
+	<key>MetalPerformanceShadersSupportedFamilies</key>
+	<array>
+		<string>MTLGPUFamilyApple1</string>
+		<string>MTLGPUFamilyApple2</string>
+		<string>MTLGPUFamilyApple3</string>
+		<string>MTLGPUFamilyApple4</string>
+		<string>MTLGPUFamilyApple5</string>
+		<string>MTLGPUFamilyApple6</string>
+		<string>MTLGPUFamilyApple7</string>
+	</array>
+	
+	<!-- App-specific settings -->
+	<key>ReverbAppSettings</key>
+	<dict>
+		<key>DefaultSampleRate</key>
+		<integer>48000</integer>
+		<key>DefaultBufferSize</key>
+		<integer>64</integer>
+		<key>MaximumLatencyMs</key>
+		<real>3.0</real>
+		<key>SupportedAudioFormats</key>
+		<array>
+			<string>wav</string>
+			<string>aiff</string>
+			<string>caf</string>
+			<string>mp3</string>
+			<string>m4a</string>
+			<string>aac</string>
+		</array>
+		<key>DefaultReverbPreset</key>
+		<string>studio</string>
+		<key>EnableAdvancedProcessing</key>
+		<true/>
+		<key>EnableBluetoothOptimizations</key>
+		<true/>
+		<key>EnableOfflineProcessing</key>
+		<true/>
+		<key>EnableBatchProcessing</key>
+		<true/>
+	</dict>
+</dict>
+</plist>
