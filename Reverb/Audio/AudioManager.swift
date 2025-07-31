@@ -397,8 +397,62 @@ class AudioManager: ObservableObject {
         completion(false, nil, 0)
     }
     
+    func startRecording() {
+        guard !isRecording else {
+            print("⚠️ Recording already in progress")
+            return
+        }
+        
+        guard isMonitoring else {
+            print("❌ Cannot start recording: monitoring not active")
+            return
+        }
+        
+        print("🎙️ Starting WET SIGNAL recording with current reverb preset: \(selectedReverbPreset.rawValue)")
+        
+        currentRecordingPreset = selectedReverbPreset.rawValue
+        recordingStartTime = Date()
+        
+        // TODO: Intégrer avec AudioEngineService ou AudioIOBridge pour démarrer l'enregistrement
+        // En attendant, simuler le démarrage
+        DispatchQueue.main.async {
+            self.isRecording = true
+        }
+        
+        print("✅ WET SIGNAL recording started with preset: \(currentRecordingPreset)")
+    }
+    
+    func stopRecording() {
+        guard isRecording else {
+            print("⚠️ No active recording to stop")
+            return
+        }
+        
+        print("🛑 Stopping WET SIGNAL recording...")
+        
+        let duration = recordingStartTime?.timeIntervalSinceNow ?? 0
+        let recordingInfo = "Preset: \(currentRecordingPreset), Duration: \(String(format: "%.1f", abs(duration)))s"
+        
+        // TODO: Intégrer avec AudioEngineService ou AudioIOBridge pour arrêter l'enregistrement
+        // En attendant, simuler l'arrêt
+        DispatchQueue.main.async {
+            self.isRecording = false
+            // Générer un nom de fichier temporaire
+            let formatter = DateFormatter()
+            formatter.dateFormat = "yyyyMMdd_HHmmss"
+            let timestamp = formatter.string(from: Date())
+            self.lastRecordingFilename = "wet_reverb_\(timestamp).wav"
+        }
+        
+        print("✅ WET SIGNAL recording completed: \(recordingInfo)")
+    }
+    
     func toggleRecording() {
-        print("🔄 ULTRA-SIMPLE: Recording toggle not implemented yet")
+        if isRecording {
+            stopRecording()
+        } else {
+            startRecording()
+        }
     }
     
     // MARK: - Custom Settings

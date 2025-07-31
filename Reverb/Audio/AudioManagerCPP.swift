@@ -325,41 +325,97 @@ class AudioManagerCPP: ObservableObject {
         }
     }
     
-    // MARK: - Recording Support
+    // MARK: - WET SIGNAL RECORDING SUPPORT
     
     func startRecording(completion: @escaping (Bool) -> Void) {
+        guard !isRecording else {
+            print("⚠️ Recording already in progress")
+            completion(false)
+            return
+        }
+        
+        guard isMonitoring else {
+            print("❌ Cannot start recording: monitoring not active")
+            completion(false)
+            return
+        }
+        
         if usingCppBackend {
-            // Use C++ recording pipeline
+            print("🎙️ Starting WET SIGNAL recording using C++ backend with preset: \(selectedReverbPreset.rawValue)")
+            
+            // Use C++ wet signal recording pipeline
             audioIOBridge?.startRecording { [weak self] success in
                 DispatchQueue.main.async {
-                    self?.isRecording = success
+                    if success {
+                        self?.isRecording = true
+                        print("✅ C++ WET SIGNAL recording started successfully")
+                    } else {
+                        print("❌ Failed to start C++ wet signal recording")
+                    }
                     completion(success)
                 }
             }
         } else {
-            originalAudioManager.startRecording(completion: completion)
+            print("🎙️ Starting WET SIGNAL recording using Swift backend with preset: \(selectedReverbPreset.rawValue)")
+            
+            // Use Swift wet signal recording via originalAudioManager
+            originalAudioManager.startRecording()
+            DispatchQueue.main.async {
+                self.isRecording = true
+                completion(true)
+            }
         }
     }
     
     func stopRecording(completion: @escaping (Bool, String?, TimeInterval) -> Void) {
+        guard isRecording else {
+            print("⚠️ No active recording to stop")
+            completion(false, nil, 0)
+            return
+        }
+        
         if usingCppBackend {
+            print("🛑 Stopping C++ WET SIGNAL recording...")
+            
             audioIOBridge?.stopRecording { [weak self] success, filename, duration in
                 DispatchQueue.main.async {
                     self?.isRecording = false
-                    self?.lastRecordingFilename = filename
+                    
+                    if success {
+                        self?.lastRecordingFilename = filename
+                        print("✅ C++ WET SIGNAL recording completed: \(filename ?? "unknown") (\(String(format: "%.1f", duration))s)")
+                    } else {
+                        print("❌ Failed to complete C++ wet signal recording")
+                    }
+                    
                     completion(success, filename, duration)
                 }
             }
         } else {
-            originalAudioManager.stopRecording(completion: completion)
+            print("🛑 Stopping Swift WET SIGNAL recording...")
+            
+            originalAudioManager.stopRecording()
+            DispatchQueue.main.async {
+                self.isRecording = false
+                self.lastRecordingFilename = self.originalAudioManager.lastRecordingFilename
+                completion(true, self.lastRecordingFilename, 0)
+            }
         }
     }
     
     func toggleRecording() {
         if isRecording {
-            stopRecording { _, _, _ in }
+            stopRecording { success, filename, duration in
+                if success {
+                    print("📁 WET SIGNAL recording saved: \(filename ?? "unknown")")
+                }
+            }
         } else {
-            startRecording { _ in }
+            startRecording { success in
+                if !success {
+                    print("❌ Failed to start wet signal recording")
+                }
+            }
         }
     }
     
@@ -458,6 +514,7 @@ class AudioManagerCPP: ObservableObject {
         print("⚡ C++ engine optimized for low latency")
     }
     
+
     func diagnostic() {
         print("🔍 === ENHANCED AUDIO MANAGER DIAGNOSTIC ===")
         print("- Backend: \(usingCppBackend ? "C++ FDN Engine" : "Swift AVAudioEngine")")

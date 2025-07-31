@@ -28,6 +28,11 @@
     ReverbPresetType currentPreset_;
     
     dispatch_queue_t audioQueue_;
+    
+    // Wet signal recording properties
+    AVAudioFile *wetRecordingFile_;
+    BOOL isRecordingWetSignal_;
+    NSDate *recordingStartTime_;
 }
 @end
 
@@ -1096,23 +1101,135 @@
     
     NSLog(@"=== END DIAGNOSTICS ===");
 }
-#pragma mark - Recording Methods (Additional)
+#pragma mark - Wet Signal Recording Implementation
 
 - (void)startRecording:(void(^)(BOOL success))completion {
-    // Implementation temporaire - vous pourrez l'améliorer plus tard
-    NSLog(@"🎵 C++ Recording started");
-    if (completion) {
-        completion(YES);
+    NSLog(@"🎙️ Starting WET SIGNAL recording with all reverb parameters applied");
+    
+    if (isRecordingWetSignal_) {
+        NSLog(@"⚠️ Recording already in progress");
+        if (completion) completion(NO);
+        return;
+    }
+    
+    if (!recordingMixer_ || !connectionFormat_) {
+        NSLog(@"❌ Recording components not available");
+        if (completion) completion(NO);
+        return;
+    }
+    
+    // Create unique filename for wet signal recording
+    NSDateFormatter *formatter = [[NSDateFormatter alloc] init];
+    formatter.dateFormat = @"yyyyMMdd_HHmmss";
+    NSString *timestamp = [formatter stringFromDate:[NSDate date]];
+    NSString *filename = [NSString stringWithFormat:@"wet_reverb_%@.wav", timestamp];
+    
+    // Get documents directory
+    NSArray *documentsPath = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
+    NSString *documentsDir = [documentsPath firstObject];
+    NSString *recordingsDir = [documentsDir stringByAppendingPathComponent:@"Recordings"];
+    
+    // Create recordings directory if needed
+    [[NSFileManager defaultManager] createDirectoryAtPath:recordingsDir 
+                              withIntermediateDirectories:YES 
+                                               attributes:nil 
+                                                    error:nil];
+    
+    NSString *filePath = [recordingsDir stringByAppendingPathComponent:filename];
+    NSURL *fileURL = [NSURL fileURLWithPath:filePath];
+    
+    @try {
+        // Create audio file for writing wet signal
+        wetRecordingFile_ = [[AVAudioFile alloc] initForWriting:fileURL 
+                                                       settings:connectionFormat_.settings 
+                                                          error:nil];
+        
+        if (!wetRecordingFile_) {
+            NSLog(@"❌ Failed to create wet signal recording file");
+            if (completion) completion(NO);
+            return;
+        }
+        
+        // Install tap on recording mixer to capture final wet/dry mix
+        [recordingMixer_ installTapOnBus:0 
+                              bufferSize:1024 
+                                  format:connectionFormat_ 
+                                   block:^(AVAudioPCMBuffer *buffer, AVAudioTime *when) {
+            if (!self->isRecordingWetSignal_ || !self->wetRecordingFile_) return;
+            
+            @try {
+                [self->wetRecordingFile_ writeFromBuffer:buffer error:nil];
+                
+                // Debug log periodically
+                if (arc4random_uniform(2000) == 0) {
+                    NSLog(@"📼 WET RECORDING: %u frames captured with all reverb parameters", 
+                          (unsigned int)buffer.frameLength);
+                }
+            } @catch (NSException *exception) {
+                NSLog(@"⚠️ Wet recording write error (non-fatal): %@", exception.reason);
+            }
+        }];
+        
+        isRecordingWetSignal_ = YES;
+        recordingStartTime_ = [NSDate date];
+        
+        NSLog(@"✅ WET SIGNAL recording started - capturing processed audio: %@", filename);
+        if (completion) completion(YES);
+        
+    } @catch (NSException *exception) {
+        NSLog(@"❌ Wet signal recording setup failed: %@", exception.reason);
+        [self cleanupWetRecording];
+        if (completion) completion(NO);
     }
 }
 
 - (void)stopRecording:(void(^)(BOOL success, NSString * _Nullable filename, NSTimeInterval duration))completion {
-    // Implementation temporaire
-    NSLog(@"🛑 C++ Recording stopped");
-    if (completion) {
-        NSString *filename = [NSString stringWithFormat:@"recording_%@.m4a", @([[NSDate date] timeIntervalSince1970])];
-        completion(YES, filename, 10.0);
+    NSLog(@"🛑 Stopping WET SIGNAL recording");
+    
+    if (!isRecordingWetSignal_) {
+        NSLog(@"⚠️ No active wet signal recording to stop");
+        if (completion) completion(NO, nil, 0.0);
+        return;
     }
+    
+    isRecordingWetSignal_ = NO;
+    
+    // Calculate recording duration
+    NSTimeInterval duration = recordingStartTime_ ? 
+        [[NSDate date] timeIntervalSinceDate:recordingStartTime_] : 0.0;
+    
+    // Remove tap from recording mixer
+    @try {
+        [recordingMixer_ removeTapOnBus:0];
+        NSLog(@"✅ Wet signal recording tap removed");
+    } @catch (NSException *exception) {
+        NSLog(@"⚠️ Error removing wet recording tap: %@", exception.reason);
+    }
+    
+    // Get filename before cleanup
+    NSString *filename = nil;
+    if (wetRecordingFile_) {
+        filename = [[wetRecordingFile_.url lastPathComponent] copy];
+    }
+    
+    // Cleanup and finalize file
+    [self cleanupWetRecording];
+    
+    NSLog(@"✅ WET SIGNAL recording completed: %@ (%.1fs)", filename ?: @"unknown", duration);
+    
+    if (completion) {
+        completion(YES, filename, duration);
+    }
+}
+
+- (void)cleanupWetRecording {
+    if (wetRecordingFile_) {
+        wetRecordingFile_ = nil; // Automatically finalizes the file
+        NSLog(@"💾 Wet signal recording file finalized");
+    }
+    
+    isRecordingWetSignal_ = NO;
+    recordingStartTime_ = nil;
 }
 
 - (float)sampleRate {

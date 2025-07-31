@@ -152,10 +152,10 @@ class RecordingService: NSObject {
         }
     }
     
-    // NOUVEAU: Enregistrement sécurisé avec protection contre les crashes
+    // NOUVEAU: Enregistrement du signal wet traité avec tous les paramètres appliqués
     private func startSafeProcessedRecording(recordingMixer: AVAudioMixerNode, format: AVAudioFormat, url: URL, completion: @escaping (Bool) -> Void) {
         
-        print("🔒 Starting SAFE processed audio recording")
+        print("🔒 Starting WET SIGNAL recording with all reverb parameters applied")
         
         // PROTECTION 1: Nettoyer avant de commencer
         cleanupRecording()
@@ -164,19 +164,19 @@ class RecordingService: NSObject {
             // PROTECTION 2: Créer un format simple et compatible
             let recordingFormat = createSafeRecordingFormat(basedOn: format)
             
-            print("📊 Safe recording format: \(recordingFormat.sampleRate) Hz, \(recordingFormat.channelCount) channels")
+            print("📊 Wet signal recording format: \(recordingFormat.sampleRate) Hz, \(recordingFormat.channelCount) channels")
             print("🎵 Format type: \(recordingFormat.commonFormat.rawValue)")
             
             // PROTECTION 3: Créer le fichier avec try-catch robuste
             recordingFile = try AVAudioFile(forWriting: url, settings: recordingFormat.settings)
             
             guard let audioFile = recordingFile else {
-                print("❌ Could not create audio file")
+                print("❌ Could not create wet signal recording file")
                 DispatchQueue.main.async { completion(false) }
                 return
             }
             
-            print("✅ Safe audio file created")
+            print("✅ Wet signal recording file created")
             
             // PROTECTION 4: Vérifier que le mixer est prêt avant d'installer le tap
             guard recordingMixer.engine != nil else {
@@ -185,45 +185,28 @@ class RecordingService: NSObject {
                 return
             }
             
-            // PROTECTION 5: Installer le tap avec gestion d'erreur complète
-            do {
-                recordingMixer.installTap(onBus: 0, bufferSize: 4096, format: recordingFormat) { [weak self] buffer, time in
-                    // PROTECTION 6: Vérifications dans le tap
-                    guard let self = self,
-                          self.isCurrentlyRecording,
-                          let audioFile = self.recordingFile else {
-                        return
-                    }
-                    
-                    // PROTECTION 7: Écriture thread-safe
-                    do {
-                        try audioFile.write(from: buffer)
-                        
-                        // Debug périodique
-                        if Int.random(in: 0...1000) == 0 {
-                            print("🔄 Safe recording: \(buffer.frameLength) frames")
-                        }
-                    } catch {
-                        print("⚠️ Buffer write error (non-fatal): \(error)")
-                        // Ne pas crasher pour une erreur d'écriture
-                    }
-                }
-                
-                // PROTECTION 8: Marquer comme en cours seulement si tout a réussi
-                isCurrentlyRecording = true
-                tapNode = recordingMixer
-                
-                print("✅ Safe processed recording started successfully")
-                DispatchQueue.main.async { completion(true) }
-                
-            } catch {
-                print("❌ Failed to install safe tap: \(error)")
-                cleanupRecording()
+            // NOUVELLE MÉTHODE: Utiliser le tap dédié au signal wet traité final
+            guard let audioEngineService = audioEngineService else {
+                print("❌ AudioEngineService not available for wet signal recording")
                 DispatchQueue.main.async { completion(false) }
+                return
             }
             
+            // Installation du tap spécialisé pour capturer le signal wet/dry final
+            audioEngineService.installWetSignalRecordingTap(on: recordingMixer, recordingFile: audioFile)
+            
+            // PROTECTION 8: Marquer comme en cours et démarrer l'enregistrement
+            isCurrentlyRecording = true
+            tapNode = recordingMixer
+            
+            // Démarrer l'enregistrement du signal wet avec tous les paramètres
+            audioEngineService.startWetSignalRecording()
+            
+            print("✅ WET SIGNAL recording started - capturing processed audio with all reverb parameters")
+            DispatchQueue.main.async { completion(true) }
+            
         } catch {
-            print("❌ Safe recording setup failed: \(error.localizedDescription)")
+            print("❌ Wet signal recording setup failed: \(error.localizedDescription)")
             cleanupRecording()
             DispatchQueue.main.async { completion(false) }
         }
@@ -271,27 +254,29 @@ class RecordingService: NSObject {
         }
     }
     
-    // NOUVEAU: Arrêt sécurisé
+    // NOUVEAU: Arrêt sécurisé de l'enregistrement wet signal
     private func stopSafeRecording(filename: String?, completion: @escaping (Bool, String?) -> Void) {
         
-        // PROTECTION 1: Arrêter le tap de manière sécurisée
-        if let tapNode = tapNode as? AVAudioMixerNode {
-            do {
-                tapNode.removeTap(onBus: 0)
-                print("✅ Tap removed safely")
-            } catch {
-                print("⚠️ Error removing tap (non-fatal): \(error)")
-            }
-            self.tapNode = nil
+        // PROTECTION 1: Arrêter l'enregistrement du signal wet
+        if let audioEngineService = audioEngineService {
+            audioEngineService.stopWetSignalRecording()
         }
         
-        // PROTECTION 2: Finaliser le fichier de manière sécurisée
+        // PROTECTION 2: Retirer le tap de manière sécurisée
+        if let tapNode = tapNode as? AVAudioMixerNode,
+           let audioEngineService = audioEngineService {
+            audioEngineService.removeWetSignalRecordingTap(from: tapNode)
+            self.tapNode = nil
+            print("✅ Wet signal recording tap removed safely")
+        }
+        
+        // PROTECTION 3: Finaliser le fichier de manière sécurisée
         if let audioFile = recordingFile {
             recordingFile = nil // Finalise automatiquement
-            print("💾 Audio file finalized safely")
+            print("💾 Wet signal audio file finalized safely")
         }
         
-        // PROTECTION 3: Attendre la finalisation
+        // PROTECTION 4: Attendre la finalisation
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
             self?.verifySafeRecording(filename: filename, completion: completion)
         }
@@ -420,18 +405,20 @@ class RecordingService: NSObject {
     // MARK: - Cleanup sécurisé
     
     private func cleanupRecording() {
+        // PROTECTION: Arrêter l'enregistrement wet signal d'abord
+        if let audioEngineService = audioEngineService {
+            audioEngineService.stopWetSignalRecording()
+        }
+        
         // PROTECTION: Nettoyage dans l'ordre correct
-        if let tapNode = tapNode as? AVAudioMixerNode {
-            do {
-                tapNode.removeTap(onBus: 0)
-            } catch {
-                print("⚠️ Tap cleanup error (ignored): \(error)")
-            }
+        if let tapNode = tapNode as? AVAudioMixerNode,
+           let audioEngineService = audioEngineService {
+            audioEngineService.removeWetSignalRecordingTap(from: tapNode)
             self.tapNode = nil
         }
         
         recordingFile = nil
-        print("🧹 Safe cleanup completed")
+        print("🧹 Wet signal recording cleanup completed")
     }
     
     // MARK: - File Management

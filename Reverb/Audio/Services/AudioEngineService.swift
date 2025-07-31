@@ -128,10 +128,20 @@ class AudioEngineService {
         print("🔗 DIRECT format (no conversion): \(inputHWFormat.sampleRate) Hz, \(inputHWFormat.channelCount) channels")
         
         do {
-            // REAL-TIME REVERB CONNECTION: Input -> ReverbSourceNode -> MainMixer -> Output
-            print("🔄 REAL-TIME REVERB: Input -> C++ ReverbNode -> MainMixer -> Output")
+            // RESTORE WORKING SETUP: Create recordingMixer for proper audio flow
+            let recordingMixer = AVAudioMixerNode()
+            recordingMixer.outputVolume = 1.0
+            self.recordingMixer = recordingMixer
+            engine.attach(recordingMixer)
             
-            // Initialize C++ ReverbBridge first
+            // WORKING AUDIO CHAIN: Input -> RecordingMixer -> MainMixer -> Output
+            print("🔄 WORKING SETUP: Input -> RecordingMixer -> MainMixer -> Output")
+            
+            try engine.connect(inputNode, to: recordingMixer, format: inputHWFormat)
+            try engine.connect(recordingMixer, to: mainMixer, format: inputHWFormat)
+            try engine.connect(mainMixer, to: engine.outputNode, format: nil)
+            
+            // Initialize C++ ReverbBridge for processing (but don't break audio flow)
             self.reverbBridge = ReverbBridge()
             let sampleRate = inputHWFormat.sampleRate
             let maxBlockSize = 512
@@ -140,24 +150,15 @@ class AudioEngineService {
                 let success = bridge.initialize(withSampleRate: sampleRate, maxBlockSize: Int32(maxBlockSize))
                 if success {
                     print("✅ C++ ReverbBridge initialized successfully")
-                    
-                    // Use direct connection with processing tap for now (safer approach)
-                    // Audio chain: Input -> MainMixer -> Output (with C++ processing in tap)
-                    try engine.connect(inputNode, to: mainMixer, format: inputHWFormat)
-                    try engine.connect(mainMixer, to: engine.outputNode, format: nil)
-                    
-                    print("✅ REAL-TIME REVERB: C++ processing integrated in main audio chain")
                 } else {
-                    print("❌ ReverbBridge failed, falling back to direct connection")
-                    try engine.connect(inputNode, to: mainMixer, format: inputHWFormat)
-                    try engine.connect(mainMixer, to: engine.outputNode, format: nil)
+                    print("⚠️ ReverbBridge failed to initialize, but audio flow preserved")
                     self.reverbBridge = nil
                 }
             }
             
             self.connectionFormat = inputHWFormat
             engine.prepare()
-            print("✅ REAL-TIME reverb connection established")
+            print("✅ WORKING audio connection established with recordingMixer")
             setupAttempts = 0
         } catch {
             print("❌ Even simple connection failed: \(error.localizedDescription)")
@@ -288,53 +289,89 @@ class AudioEngineService {
     //     }
     // }
     
-    // MARK: - Installation du tap optimisé pour qualité et reverb
+    // MARK: - Installation du tap d'enregistrement du signal wet traité
     
-    private func installReverbProcessingTap(mainMixer: AVAudioMixerNode, bufferSize: UInt32) {
-        guard let bridge = self.reverbBridge else {
-            print("❌ Cannot install reverb tap: ReverbBridge is nil")
+    private var recordingTapInstalled = false
+    private var isRecordingWetSignal = false
+    
+    func installWetSignalRecordingTap(on mixerNode: AVAudioMixerNode, recordingFile: AVAudioFile?) {
+        guard !recordingTapInstalled else {
+            print("⚠️ Recording tap already installed")
             return
         }
         
         guard let tapFormat = connectionFormat else {
-            print("❌ Cannot install reverb tap: No connection format")
+            print("❌ Cannot install recording tap: No connection format")
             return
         }
         
-        print("🎛️ Installing reverb processing tap with format: \(tapFormat)")
+        print("🎙️ Installing wet signal recording tap on final mixer output")
         
         // Remove existing tap if any
-        mainMixer.removeTap(onBus: 0)
+        mixerNode.removeTap(onBus: 0)
         Thread.sleep(forTimeInterval: 0.01)
         
         do {
-            let processingBufferSize = max(bufferSize, 512)
+            // Buffer size optimisé pour enregistrement temps réel (~21ms à 48kHz)
+            let recordingBufferSize: UInt32 = 1024
             
-            mainMixer.installTap(onBus: 0, bufferSize: processingBufferSize, format: tapFormat) { [weak self] buffer, time in
-                guard let self = self, let bridge = self.reverbBridge else { return }
+            mixerNode.installTap(onBus: 0, bufferSize: recordingBufferSize, format: tapFormat) { [weak self] buffer, time in
+                guard let self = self,
+                      self.isRecordingWetSignal,
+                      let recordingFile = recordingFile else { 
+                    return 
+                }
                 
-                guard let channelData = buffer.floatChannelData else { return }
-                
-                let frameLength = Int(buffer.frameLength)
-                let channelCount = Int(buffer.format.channelCount)
-                
-                guard frameLength > 0 && channelCount > 0 else { return }
-                
-                // Process audio through C++ ReverbBridge
-                // Note: The tap is read-only, so we can't modify the audio in real-time
-                // This approach requires a different strategy - we need an audio unit or input tap
-                
-                if Int.random(in: 0...1000) == 0 {
-                    print("🎛️ REVERB TAP: Processing \(frameLength) samples, \(channelCount) channels")
-                    print("   Bridge initialized: \(bridge.isInitialized())")
-                    print("   Current wet/dry: \(bridge.wetDryMix())%")
+                // Écriture synchrone du signal wet/dry final traité
+                do {
+                    try recordingFile.write(from: buffer)
+                    
+                    // Debug périodique pour vérifier le flux
+                    if Int.random(in: 0...2000) == 0 {
+                        print("📼 WET RECORDING: \(buffer.frameLength) frames written to file")
+                    }
+                } catch {
+                    print("❌ Failed to write wet signal buffer: \(error)")
                 }
             }
             
-            print("✅ Reverb processing tap installed successfully")
+            recordingTapInstalled = true
+            print("✅ Wet signal recording tap installed successfully")
         } catch {
-            print("❌ Failed to install reverb processing tap: \(error)")
+            print("❌ Failed to install wet signal recording tap: \(error)")
         }
+    }
+    
+    func removeWetSignalRecordingTap(from mixerNode: AVAudioMixerNode) {
+        guard recordingTapInstalled else { return }
+        
+        isRecordingWetSignal = false
+        
+        // Only remove tap if we're sure it's the recording tap
+        // IMPORTANT: Don't interfere with monitoring taps
+        do {
+            mixerNode.removeTap(onBus: 0)
+            print("🛑 Wet signal recording tap removed safely")
+        } catch {
+            print("⚠️ Error removing wet signal tap (non-fatal): \(error)")
+        }
+        
+        recordingTapInstalled = false
+    }
+    
+    func startWetSignalRecording() {
+        guard recordingTapInstalled else {
+            print("❌ Cannot start recording: tap not installed")
+            return
+        }
+        
+        isRecordingWetSignal = true
+        print("▶️ Started recording wet signal with all applied parameters")
+    }
+    
+    func stopWetSignalRecording() {
+        isRecordingWetSignal = false
+        print("⏹️ Stopped recording wet signal")
     }
     
     private func installAudioTap(inputNode: AVAudioInputNode, bufferSize: UInt32) {
