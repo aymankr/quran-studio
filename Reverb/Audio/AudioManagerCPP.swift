@@ -15,6 +15,9 @@ class AudioManagerCPP: ObservableObject {
     // Fallback to original AudioManager
     private let originalAudioManager = AudioManager.shared
     
+    // Enhanced recording session manager (TODO: Add to Xcode project)
+    // @Published var recordingSessionManager: RecordingSessionManager?
+    
     // Published properties
     @Published var selectedReverbPreset: ReverbPreset = .clean
     @Published var currentAudioLevel: Float = 0.0
@@ -32,6 +35,9 @@ class AudioManagerCPP: ObservableObject {
         
         // Try to initialize C++ backend as secondary option
         initializeCppBackend()
+        
+        // Initialize enhanced recording session manager (TODO: Add to Xcode project)
+        // initializeRecordingSessionManager()
     }
     
     func toggleBackend() {
@@ -155,6 +161,21 @@ class AudioManagerCPP: ObservableObject {
             .assign(to: &$isMonitoring)
         
         print("✅ Original AudioManager observers setup - monitoring state will be synchronized")
+    }
+    
+    // TODO: Add to Xcode project first
+    /*
+    private func initializeRecordingSessionManager() {
+        // Initialize the recording session manager
+        // It will connect to AudioEngineService when needed
+        recordingSessionManager = RecordingSessionManager()
+        print("✅ Enhanced recording session manager initialized")
+    }
+    */
+    
+    // MARK: - AudioEngineService Access
+    var audioEngineService: AudioEngineService? {
+        return originalAudioManager.audioEngineService
     }
     
     // MARK: - Public Interface (unified for both backends)

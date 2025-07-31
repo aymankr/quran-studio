@@ -35,6 +35,9 @@ class AudioManager: ObservableObject {
     // Monitoring state
     @Published var isMonitoring = false
     
+    // Audio engine service for advanced recording features
+    lazy var audioEngineService: AudioEngineService = AudioEngineService()
+    
     // Preset description
     var currentPresetDescription: String {
         switch selectedReverbPreset {

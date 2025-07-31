@@ -117,6 +117,9 @@ struct ContentView: View {
         
         if isMonitoring {
             recordingSection
+            
+            // Advanced recording controls (TODO: Add RecordingControlsView to Xcode project)
+            // RecordingControlsView(audioManager: audioManager)
         }
         
         recordingsListSection
@@ -133,6 +136,9 @@ struct ContentView: View {
                 
                 if isMonitoring {
                     recordingSection
+                    
+                    // Advanced recording controls (TODO: Add RecordingControlsView to Xcode project)
+                    // RecordingControlsView(audioManager: audioManager)
                 }
             }
             .frame(maxWidth: 350)
