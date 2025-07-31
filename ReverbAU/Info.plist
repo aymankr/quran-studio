@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>$(DEVELOPMENT_LANGUAGE)</string>
+    <key>CFBundleDisplayName</key>
+    <string>Reverb AU</string>
+    <key>CFBundleExecutable</key>
+    <string>$(EXECUTABLE_NAME)</string>
+    <key>CFBundleIdentifier</key>
+    <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>CFBundleName</key>
+    <string>$(PRODUCT_NAME)</string>
+    <key>CFBundlePackageType</key>
+    <string>XPC!</string>
+    <key>CFBundleShortVersionString</key>
+    <string>1.0</string>
+    <key>CFBundleVersion</key>
+    <string>1</string>
+    <key>NSExtension</key>
+    <dict>
+        <key>NSExtensionMainStoryboard</key>
+        <string>MainInterface</string>
+        <key>NSExtensionPointIdentifier</key>
+        <string>com.apple.AudioUnit-UI</string>
+        <key>NSExtensionPrincipalClass</key>
+        <string>ReverbAU.ReverbAudioUnitViewController</string>
+    </dict>
+    
+    <!-- Audio Unit Configuration -->
+    <key>AudioComponents</key>
+    <array>
+        <dict>
+            <!-- Audio Unit Properties -->
+            <key>name</key>
+            <string>Professional Reverb</string>
+            <key>description</key>
+            <string>High-quality algorithmic reverb inspired by the Lexicon 480L</string>
+            <key>factoryFunction</key>
+            <string>ReverbAudioUnitFactory</string>
+            <key>manufacturer</key>
+            <string>Reverb</string>
+            <key>type</key>
+            <string>aufx</string>
+            <key>subtype</key>
+            <string>rvb1</string>
+            <key>version</key>
+            <integer>65536</integer>
+            
+            <!-- Audio Unit Capabilities -->
+            <key>sandboxSafe</key>
+            <true/>
+            <key>hasCustomView</key>
+            <true/>
+            <key>supportsNumberInputChannels</key>
+            <integer>-1</integer>
+            <key>supportsNumberOutputChannels</key>
+            <integer>-1</integer>
+            
+            <!-- Performance Characteristics -->
+            <key>renderQuality</key>
+            <string>high</string>
+            <key>cpuLoad</key>
+            <string>0.1</string>
+            
+            <!-- Plugin Categories -->
+            <key>tags</key>
+            <array>
+                <string>Effects</string>
+                <string>Reverb</string>
+                <string>Spatial</string>
+            </array>
+            
+            <!-- Supported Channel Configurations -->
+            <key>channelLayouts</key>
+            <array>
+                <!-- Stereo In/Out -->
+                <dict>
+                    <key>inputs</key>
+                    <integer>2</integer>
+                    <key>outputs</key>
+                    <integer>2</integer>
+                </dict>
+                <!-- Mono In/Out -->
+                <dict>
+                    <key>inputs</key>
+                    <integer>1</integer>
+                    <key>outputs</key>
+                    <integer>1</integer>
+                </dict>
+            </array>
+        </dict>
+    </array>
+    
+    <!-- Required device capabilities -->
+    <key>UIRequiredDeviceCapabilities</key>
+    <array>
+        <string>arm64</string>
+    </array>
+    
+    <!-- Background audio processing -->
+    <key>UIBackgroundModes</key>
+    <array>
+        <string>audio</string>
+    </array>
+    
+    <!-- iOS deployment target -->
+    <key>MinimumOSVersion</key>
+    <string>14.0</string>
+    
+    <!-- Support for both iPhone and iPad -->
+    <key>UISupportedInterfaceOrientations</key>
+    <array>
+        <string>UIInterfaceOrientationPortrait</string>
+        <string>UIInterfaceOrientationLandscapeLeft</string>
+        <string>UIInterfaceOrientationLandscapeRight</string>
+    </array>
+    
+    <key>UISupportedInterfaceOrientations~ipad</key>
+    <array>
+        <string>UIInterfaceOrientationPortrait</string>
+        <string>UIInterfaceOrientationPortraitUpsideDown</string>
+        <string>UIInterfaceOrientationLandscapeLeft</string>
+        <string>UIInterfaceOrientationLandscapeRight</string>
+    </array>
+    
+    <!-- Dark appearance support -->
+    <key>UIUserInterfaceStyle</key>
+    <string>Automatic</string>
+    
+    <!-- Privacy usage descriptions -->
+    <key>NSMicrophoneUsageDescription</key>
+    <string>This Audio Unit processes audio input for reverb effects in supported DAW applications.</string>
+</dict>
+</plist>

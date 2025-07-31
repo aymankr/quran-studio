@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="21701" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" useTraitCollections="YES" useSafeAreas="YES" colorMatched="YES" initialViewController="M4Y-Lb-cyx">
+    <device id="ipad12_9rounded" orientation="landscape" layout="fullscreen" appearance="light"/>
+    <dependencies>
+        <deployment identifier="iOS"/>
+        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="21679"/>
+        <capability name="Safe area layout guides" minToolsVersion="9.0"/>
+        <capability name="System colors in document resources" minToolsVersion="11.0"/>
+        <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
+    </dependencies>
+    <scenes>
+        <!--Reverb Audio Unit View Controller-->
+        <scene sceneID="cwh-vc-ff4">
+            <objects>
+                <viewController id="M4Y-Lb-cyx" customClass="ReverbAudioUnitViewController" customModule="ReverbAU" customModuleProvider="target" sceneMemberID="viewController">
+                    <view key="view" contentMode="scaleToFill" id="S3S-Oj-5AN">
+                        <rect key="frame" x="0.0" y="0.0" width="1366" height="1024"/>
+                        <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                        <subviews>
+                            <!-- Loading View (shown while initializing) -->
+                            <view contentMode="scaleToFill" translatesAutoresizingMaskIntoConstraints="NO" id="loading-view">
+                                <rect key="frame" x="0.0" y="0.0" width="1366" height="1024"/>
+                                <subviews>
+                                    <activityIndicatorView opaque="NO" contentMode="scaleToFill" horizontalHuggingPriority="750" verticalHuggingPriority="750" animating="YES" style="large" translatesAutoresizingMaskIntoConstraints="NO" id="loading-spinner">
+                                        <rect key="frame" x="664.5" y="492" width="37" height="37"/>
+                                        <color key="color" systemColor="systemBlueColor"/>
+                                    </activityIndicatorView>
+                                    <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Loading Reverb..." textAlignment="center" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="loading-label">
+                                        <rect key="frame" x="608" y="537" width="150" height="24"/>
+                                        <constraints>
+                                            <constraint firstAttribute="width" constant="150" id="loading-label-width"/>
+                                            <constraint firstAttribute="height" constant="24" id="loading-label-height"/>
+                                        </constraints>
+                                        <fontDescription key="fontDescription" type="system" weight="medium" pointSize="16"/>
+                                        <color key="textColor" systemColor="labelColor"/>
+                                        <nil key="highlightedColor"/>
+                                    </label>
+                                </subviews>
+                                <color key="backgroundColor" systemColor="systemBackgroundColor"/>
+                                <constraints>
+                                    <constraint firstItem="loading-spinner" firstAttribute="centerX" secondItem="loading-view" secondAttribute="centerX" id="loading-spinner-centerX"/>
+                                    <constraint firstItem="loading-spinner" firstAttribute="centerY" secondItem="loading-view" secondAttribute="centerY" id="loading-spinner-centerY"/>
+                                    <constraint firstItem="loading-label" firstAttribute="top" secondItem="loading-spinner" secondAttribute="bottom" constant="8" id="loading-label-top"/>
+                                    <constraint firstItem="loading-label" firstAttribute="centerX" secondItem="loading-view" secondAttribute="centerX" id="loading-label-centerX"/>
+                                </constraints>
+                            </view>
+                            
+                            <!-- Error View (shown if initialization fails) -->
+                            <view hidden="YES" contentMode="scaleToFill" translatesAutoresizingMaskIntoConstraints="NO" id="error-view">
+                                <rect key="frame" x="0.0" y="0.0" width="1366" height="1024"/>
+                                <subviews>
+                                    <imageView clipsSubviews="YES" userInteractionEnabled="NO" contentMode="scaleAspectFit" horizontalHuggingPriority="251" verticalHuggingPriority="251" image="exclamationmark.triangle" catalog="system" translatesAutoresizingMaskIntoConstraints="NO" id="error-icon">
+                                        <rect key="frame" x="633" y="462" width="100" height="95"/>
+                                        <color key="tintColor" systemColor="systemOrangeColor"/>
+                                        <constraints>
+                                            <constraint firstAttribute="width" constant="100" id="error-icon-width"/>
+                                            <constraint firstAttribute="height" constant="100" id="error-icon-height"/>
+                                        </constraints>
+                                    </imageView>
+                                    <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Audio Unit Failed to Load" textAlignment="center" lineBreakMode="tailTruncation" numberOfLines="0" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="error-title">
+                                        <rect key="frame" x="533" y="577" width="300" height="24"/>
+                                        <constraints>
+                                            <constraint firstAttribute="width" constant="300" id="error-title-width"/>
+                                        </constraints>
+                                        <fontDescription key="fontDescription" type="system" weight="semibold" pointSize="18"/>
+                                        <color key="textColor" systemColor="labelColor"/>
+                                        <nil key="highlightedColor"/>
+                                    </label>
+                                    <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Please check the plugin configuration and try again." textAlignment="center" lineBreakMode="tailTruncation" numberOfLines="0" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="error-message">
+                                        <rect key="frame" x="483" y="609" width="400" height="21"/>
+                                        <constraints>
+                                            <constraint firstAttribute="width" constant="400" id="error-message-width"/>
+                                        </constraints>
+                                        <fontDescription key="fontDescription" type="system" pointSize="16"/>
+                                        <color key="textColor" systemColor="secondaryLabelColor"/>
+                                        <nil key="highlightedColor"/>
+                                    </label>
+                                </subviews>
+                                <color key="backgroundColor" systemColor="systemBackgroundColor"/>
+                                <constraints>
+                                    <constraint firstItem="error-icon" firstAttribute="centerX" secondItem="error-view" secondAttribute="centerX" id="error-icon-centerX"/>
+                                    <constraint firstItem="error-icon" firstAttribute="centerY" secondItem="error-view" secondAttribute="centerY" constant="-50" id="error-icon-centerY"/>
+                                    <constraint firstItem="error-title" firstAttribute="top" secondItem="error-icon" secondAttribute="bottom" constant="20" id="error-title-top"/>
+                                    <constraint firstItem="error-title" firstAttribute="centerX" secondItem="error-view" secondAttribute="centerX" id="error-title-centerX"/>
+                                    <constraint firstItem="error-message" firstAttribute="top" secondItem="error-title" secondAttribute="bottom" constant="8" id="error-message-top"/>
+                                    <constraint firstItem="error-message" firstAttribute="centerX" secondItem="error-view" secondAttribute="centerX" id="error-message-centerX"/>
+                                </constraints>
+                            </view>
+                        </subviews>
+                        <viewLayoutMarginsGuide key="safeArea" id="O1u-W0-tvk"/>
+                        <color key="backgroundColor" systemColor="systemBackgroundColor"/>
+                        <constraints>
+                            <!-- Loading View Constraints -->
+                            <constraint firstItem="loading-view" firstAttribute="top" secondItem="S3S-Oj-5AN" secondAttribute="top" id="loading-view-top"/>
+                            <constraint firstItem="loading-view" firstAttribute="leading" secondItem="S3S-Oj-5AN" secondAttribute="leading" id="loading-view-leading"/>
+                            <constraint firstItem="loading-view" firstAttribute="trailing" secondItem="S3S-Oj-5AN" secondAttribute="trailing" id="loading-view-trailing"/>
+                            <constraint firstItem="loading-view" firstAttribute="bottom" secondItem="S3S-Oj-5AN" secondAttribute="bottom" id="loading-view-bottom"/>
+                            
+                            <!-- Error View Constraints -->
+                            <constraint firstItem="error-view" firstAttribute="top" secondItem="S3S-Oj-5AN" secondAttribute="top" id="error-view-top"/>
+                            <constraint firstItem="error-view" firstAttribute="leading" secondItem="S3S-Oj-5AN" secondAttribute="leading" id="error-view-leading"/>
+                            <constraint firstItem="error-view" firstAttribute="trailing" secondItem="S3S-Oj-5AN" secondAttribute="trailing" id="error-view-trailing"/>
+                            <constraint firstItem="error-view" firstAttribute="bottom" secondItem="S3S-Oj-5AN" secondAttribute="bottom" id="error-view-bottom"/>
+                        </constraints>
+                    </view>
+                    <connections>
+                        <outlet property="loadingView" destination="loading-view" id="loading-view-outlet"/>
+                        <outlet property="errorView" destination="error-view" id="error-view-outlet"/>
+                    </connections>
+                </viewController>
+                <placeholder placeholderIdentifier="IBFirstResponder" id="Ief-a0-LHa" userLabel="First Responder" customClass="UIResponder" sceneMemberID="firstResponder"/>
+            </objects>
+            <point key="canvasLocation" x="139" y="126"/>
+        </scene>
+    </scenes>
+    <resources>
+        <image name="exclamationmark.triangle" catalog="system" width="109" height="96"/>
+        <systemColor name="labelColor">
+            <color red="0.0" green="0.0" blue="0.0" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+        </systemColor>
+        <systemColor name="secondaryLabelColor">
+            <color red="0.23529411764705882" green="0.23529411764705882" blue="0.2627450980392157" alpha="0.59999999999999998" colorSpace="custom" customColorSpace="sRGB"/>
+        </systemColor>
+        <systemColor name="systemBackgroundColor">
+            <color red="1" green="1" blue="1" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+        </systemColor>
+        <systemColor name="systemBlueColor">
+            <color red="0.0" green="0.47843137254901963" blue="1" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+        </systemColor>
+        <systemColor name="systemOrangeColor">
+            <color red="1" green="0.58431372549019611" blue="0.0" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+        </systemColor>
+    </resources>
+</document>
