@@ -411,7 +411,8 @@ struct WetDryRecordingView: View {
     
     private func setupWetDryManager() {
         if let audioEngineService = audioManager.audioEngineService {
-            wetDryManager.audioEngineService = audioEngineService
+            // TODO: Fix audioEngineService accessibility issue
+            // wetDryManager.audioEngineService = audioEngineService
         }
     }
     

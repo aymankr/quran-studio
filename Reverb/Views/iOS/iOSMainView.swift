@@ -1,8 +1,12 @@
 import SwiftUI
+import AVFoundation
+#if canImport(UIKit)
+import UIKit
+#endif
 
 /// iOS-optimized main interface for Reverb application
 /// Adapts the desktop interface for touch interactions and mobile constraints
-@available(iOS 14.0, *)
+@available(iOS 15.0, *)
 struct iOSMainView: View {
     @StateObject private var audioManager = AudioManagerCPP.shared
     @StateObject private var audioSession = CrossPlatformAudioSession()
@@ -89,41 +93,38 @@ struct iOSMainView: View {
             }
             .navigationTitle("Reverb")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button(action: {
-                        showingSessionInfo = true
-                    }) {
-                        HStack(spacing: 4) {
-                            Circle()
-                                .fill(audioSession.isConfigured ? .green : .red)
-                                .frame(width: 8, height: 8)
-                            
-                            Text(audioSession.getLatencyDescription())
-                                .font(.caption2)
-                                .foregroundColor(.primary)
-                        }
+            .navigationBarBackButtonHidden(false)
+            .navigationBarItems(
+                leading: Button(action: {
+                    showingSessionInfo = true
+                }) {
+                    HStack(spacing: 4) {
+                        Circle()
+                            .fill(audioSession.isConfigured ? .green : .red)
+                            .frame(width: 8, height: 8)
+                        
+                        Text(audioSession.getLatencyDescription())
+                            .font(.caption2)
+                            .foregroundColor(.primary)
                     }
+                },
+                trailing: Button(action: {
+                    showingSettings = true
+                }) {
+                    Image(systemName: "gear")
                 }
-                
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: {
-                        showingSettings = true
-                    }) {
-                        Image(systemName: "gear")
-                    }
-                }
-            }
+            )
         }
         .navigationViewStyle(StackNavigationViewStyle()) // Force single view on iPhone
         .sheet(isPresented: $showingSettings) {
-            iOSSettingsView(
-                audioManager: audioManager,
-                audioSession: audioSession
-            )
+            // TODO: Add iOSSettingsView to Xcode project
+            Text("Settings - Coming Soon")
+                .padding()
         }
         .sheet(isPresented: $showingSessionInfo) {
-            iOSAudioSessionInfoView(audioSession: audioSession)
+            // iOSAudioSessionInfoView(audioSession: audioSession) // TODO: Add to Xcode project
+            Text("Audio Session Info - Coming Soon")
+                .padding()
         }
         .sheet(isPresented: $showingOnboarding) {
             iOSOnboardingView(

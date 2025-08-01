@@ -1,620 +1,302 @@
 import Foundation
 import AVFoundation
+import SwiftUI
 import Combine
 
-/// Enhanced AudioManager that can optionally use C++ backend
-/// Falls back to original implementation if C++ is not available
-class AudioManagerCPP: ObservableObject {
-    static let shared = AudioManagerCPP()
+// iOS-native Swift implementation of AudioManagerCPP
+// Provides the same interface as the original but optimized for iOS
+@MainActor
+public class AudioManagerCPP: ObservableObject {
     
-    // C++ Backend
-    private var reverbBridge: ReverbBridge?
-    private var audioIOBridge: AudioIOBridge?
-    @Published var usingCppBackend: Bool = false
+    // MARK: - Singleton
+    public static let shared = AudioManagerCPP()
     
-    // Fallback to original AudioManager
-    private let originalAudioManager = AudioManager.shared
+    // MARK: - Published Properties
+    @Published public var isMonitoring = false
+    @Published public var isRecording = false
+    @Published public var selectedReverbPreset: ReverbPreset = .clean
+    @Published public var audioLevel: Float = 0.0
+    @Published public var inputVolume: Float = 1.0
+    @Published public var outputVolume: Float = 1.0
+    @Published public var isMuted = false
+    @Published public var customReverbSettings = CustomReverbSettings.default
     
-    // Enhanced recording session manager (TODO: Add to Xcode project)
-    // @Published var recordingSessionManager: RecordingSessionManager?
+    // MARK: - Audio Services
+    public var audioEngineService: AudioEngineService?
+    private var recordingSessionManager: RecordingSessionManager?
+    private var wetDryRecordingManager: WetDryRecordingManager?
     
-    // Published properties
-    @Published var selectedReverbPreset: ReverbPreset = .clean
-    @Published var currentAudioLevel: Float = 0.0
-    @Published var isRecording: Bool = false
-    @Published var lastRecordingFilename: String?
-    @Published var isMonitoring: Bool = false
-    @Published var cpuUsage: Double = 0.0
+    // MARK: - Recording State
+    @Published public var recordingHistory: [RecordingInfo] = []
+    private var recordingStartTime: Date?
     
-    // Custom reverb settings
-    @Published var customReverbSettings = CustomReverbSettings.default
+    // MARK: - Initialization
     
     private init() {
-        // Start with Swift backend by default
-        setupOriginalManagerObservers()
-        
-        // Try to initialize C++ backend as secondary option
-        initializeCppBackend()
-        
-        // Initialize enhanced recording session manager (TODO: Add to Xcode project)
-        // initializeRecordingSessionManager()
+        print("🎵 AudioManagerCPP iOS native implementation initializing...")
+        setupAudioServices()
+        setupAudioLevelCallback()
+        print("✅ AudioManagerCPP iOS ready")
     }
     
-    func toggleBackend() {
-        if usingCppBackend {
-            switchToSwiftBackend()
-        } else {
-            switchToCppBackend()
-        }
-    }
-    
-    private func switchToSwiftBackend() {
-        print("🔄 Switching to Swift backend...")
-        
-        // Stop C++ backend if running
-        if isMonitoring {
-            audioIOBridge?.setMonitoring(false)
-            audioIOBridge?.stopEngine()
-        }
-        
-        usingCppBackend = false
-        
-        // Start Swift monitoring if it was active
-        if isMonitoring {
-            originalAudioManager.startMonitoring()
-        }
-        
-        print("✅ Switched to Swift AVAudioEngine backend")
-    }
-    
-    private func switchToCppBackend() {
-        print("🔄 Switching to C++ backend...")
-        
-        guard isCppBackendAvailable else {
-            print("❌ C++ backend not available, initializing...")
-            initializeCppBackend()
-            return
-        }
-        
-        // Stop Swift backend if running
-        if isMonitoring {
-            originalAudioManager.stopMonitoring()
-        }
-        
-        usingCppBackend = true
-        
-        // Start C++ monitoring if it was active
-        if isMonitoring {
-            let success = audioIOBridge?.startEngine() ?? false
-            if success {
-                audioIOBridge?.setMonitoring(true)
-            }
-        }
-        
-        print("✅ Switched to C++ FDN backend")
-    }
-    
-    // MARK: - C++ Backend Setup
-    
-    private func initializeCppBackend() {
-        print("🎵 C++ BACKEND: Testing C++ audio library integration...")
-        
-        // Try to initialize C++ backend
-        print("🔧 Creating C++ ReverbBridge...")
-        reverbBridge = ReverbBridge()
-        
-        if let bridge = reverbBridge {
-            print("🔧 Creating C++ AudioIOBridge...")
-            audioIOBridge = AudioIOBridge(reverbBridge: bridge)
-            
-            print("🔧 Setting up C++ audio engine...")
-            let setupSuccess = audioIOBridge?.setupAudioEngine() ?? false
-            
-            if setupSuccess {
-                print("✅ C++ BACKEND INITIALIZED AND AVAILABLE!")
-                setupCppObservers()
-            } else {
-                print("❌ C++ backend setup failed")
-            }
-        } else {
-            print("❌ Failed to create ReverbBridge")
-        }
-    }
-    
-    private func setupCppObservers() {
-        // Set up audio level monitoring for C++ backend
-        audioIOBridge?.setAudioLevelCallback { [weak self] level in
-            DispatchQueue.main.async {
-                self?.currentAudioLevel = level
-            }
-        }
-        
-        // Performance monitoring
-        Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
-            guard let self = self, let bridge = self.reverbBridge else { return }
-            
-            DispatchQueue.main.async {
-                self.cpuUsage = bridge.cpuUsage()
-            }
-        }
-    }
-    
-    private func setupOriginalManagerObservers() {
-        // Mirror original manager's published properties
-        originalAudioManager.$selectedReverbPreset
-            .assign(to: &$selectedReverbPreset)
-        
-        originalAudioManager.$currentAudioLevel
-            .assign(to: &$currentAudioLevel)
-        
-        originalAudioManager.$isRecording
-            .assign(to: &$isRecording)
-        
-        originalAudioManager.$lastRecordingFilename
-            .assign(to: &$lastRecordingFilename)
-        
-        originalAudioManager.$customReverbSettings
-            .assign(to: &$customReverbSettings)
-        
-        // Synchronize monitoring state continuously
-        originalAudioManager.$isMonitoring
-            .assign(to: &$isMonitoring)
-        
-        print("✅ Original AudioManager observers setup - monitoring state will be synchronized")
-    }
-    
-    // TODO: Add to Xcode project first
-    /*
-    private func initializeRecordingSessionManager() {
-        // Initialize the recording session manager
-        // It will connect to AudioEngineService when needed
+    private func setupAudioServices() {
+        audioEngineService = AudioEngineService()
         recordingSessionManager = RecordingSessionManager()
-        print("✅ Enhanced recording session manager initialized")
-    }
-    */
-    
-    // MARK: - AudioEngineService Access
-    var audioEngineService: AudioEngineService? {
-        return originalAudioManager.audioEngineService
+        wetDryRecordingManager = WetDryRecordingManager()
+        
+        print("🔧 AudioManagerCPP: Audio services initialized")
     }
     
-    // MARK: - Public Interface (unified for both backends)
-    
-    func startMonitoring() {
-        print("🎵 AudioManagerCPP.startMonitoring called")
-        if usingCppBackend {
-            // Use the C++ AudioIOBridge's engine directly
-            let success = audioIOBridge?.startEngine() ?? false
-            if success {
-                audioIOBridge?.setMonitoring(true)
-                isMonitoring = true
-                print("🎵 C++ engine started with direct C++ processing")
-            } else {
-                print("❌ Failed to start C++ engine, falling back to Swift")
-                originalAudioManager.startMonitoring()
-                // isMonitoring will be automatically synchronized via observer
+    private func setupAudioLevelCallback() {
+        audioEngineService?.onAudioLevelChanged = { [weak self] level in
+            DispatchQueue.main.async {
+                self?.audioLevel = level
             }
-        } else {
-            print("🔄 Using Swift backend - calling originalAudioManager.startMonitoring()")
-            originalAudioManager.startMonitoring()
-            // Force synchronization of state
-            self.isMonitoring = originalAudioManager.isMonitoring
-            print("✅ Swift monitoring started via AudioManagerCPP (state: \(self.isMonitoring))")
         }
     }
     
-    func stopMonitoring() {
-        print("🔇 AudioManagerCPP.stopMonitoring called")
-        if usingCppBackend {
-            audioIOBridge?.setMonitoring(false)
-            audioIOBridge?.stopEngine()
-            isMonitoring = false
-            currentAudioLevel = 0.0
-            print("🔇 C++ engine stopped")
-        } else {
-            print("🔄 Using Swift backend - calling originalAudioManager.stopMonitoring()")
-            originalAudioManager.stopMonitoring()
-            // Force synchronization of state
-            self.isMonitoring = originalAudioManager.isMonitoring
-            print("✅ Swift monitoring stopped via AudioManagerCPP (state: \(self.isMonitoring))")
-        }
+    // MARK: - Monitoring Control
+    
+    public func startMonitoring() {
+        print("🎵 AudioManagerCPP: Starting monitoring...")
+        
+        audioEngineService?.setMonitoring(enabled: true)
+        isMonitoring = true
+        
+        // Apply current preset
+        updateReverbPreset(selectedReverbPreset)
+        
+        print("✅ AudioManagerCPP: Monitoring started")
     }
     
-    func updateReverbPreset(_ preset: ReverbPreset) {
-        print("📥 AUDIOMANAGERCPP: Received updateReverbPreset(\(preset.rawValue))")
-        print("🔧 AUDIOMANAGERCPP: usingCppBackend = \(usingCppBackend)")
+    public func stopMonitoring() {
+        print("🛑 AudioManagerCPP: Stopping monitoring...")
+        
+        audioEngineService?.setMonitoring(enabled: false)
+        isMonitoring = false
+        
+        print("✅ AudioManagerCPP: Monitoring stopped")
+    }
+    
+    // MARK: - Volume Control
+    
+    public func setInputVolume(_ volume: Float) {
+        inputVolume = max(0.0, min(3.0, volume))
+        audioEngineService?.setInputVolume(inputVolume)
+        print("🎵 AudioManagerCPP: Input volume set to \(Int(inputVolume * 100))%")
+    }
+    
+    public func setOutputVolume(_ volume: Float) {
+        outputVolume = max(0.0, min(3.0, volume))
+        audioEngineService?.setOutputVolume(outputVolume, isMuted: isMuted)
+        print("🔊 AudioManagerCPP: Output volume set to \(Int(outputVolume * 100))%")
+    }
+    
+    public func setMuted(_ muted: Bool) {
+        isMuted = muted
+        audioEngineService?.setOutputVolume(outputVolume, isMuted: muted)
+        print("🔇 AudioManagerCPP: Muted = \(muted)")
+    }
+    
+    // MARK: - Reverb Preset Management
+    
+    public func updateReverbPreset(_ preset: ReverbPreset) {
+        print("🎛️ AudioManagerCPP: Updating reverb preset to \(preset.rawValue)")
+        
         selectedReverbPreset = preset
+        audioEngineService?.updateReverbPreset(preset: preset)
         
-        if usingCppBackend {
-            // DO NOT call originalAudioManager - it interferes with C++
-            // originalAudioManager.updateReverbPreset(.clean)
-            
-            // Map Swift preset to C++ preset correctly
-            let cppPreset: ReverbPresetType
-            switch preset {
-            case .clean: 
-                cppPreset = ReverbPresetType.clean
-            case .vocalBooth: 
-                cppPreset = ReverbPresetType.vocalBooth
-            case .studio: 
-                cppPreset = ReverbPresetType.studio
-            case .cathedral: 
-                cppPreset = ReverbPresetType.cathedral
-            case .custom: 
-                cppPreset = ReverbPresetType.custom
-            }
-            
-            print("🔧 AUDIOMANAGERCPP: Using C++ backend for preset application")
-            
-            // Apply via AudioIOBridge (which manages the audio chain)
-            if let iobridge = audioIOBridge {
-                print("📤 AUDIOMANAGERCPP: Calling audioIOBridge.setReverbPreset(\(preset.rawValue))")
-                iobridge.setReverbPreset(cppPreset)
-                
-                // Verify the preset was applied
-                let _ = iobridge.currentReverbPreset()
-                print("✅ AUDIOMANAGERCPP: C++ preset applied via AudioIOBridge: \(preset.rawValue)")
-                
-                // Apply custom settings if needed
-                if preset == .custom {
-                    print("🎨 AUDIOMANAGERCPP: Applying custom settings via AudioIOBridge")
-                    applyCppCustomSettings()
-                }
-            } else {
-                print("❌ AUDIOMANAGERCPP: AudioIOBridge is nil, falling back to ReverbBridge")
-                // Fallback to direct ReverbBridge
-                reverbBridge?.setPreset(cppPreset)
-                if preset == .custom {
-                    applyCppCustomSettings()
-                }
-            }
-            
-            print("✅ AUDIOMANAGERCPP: C++ reverb preset processing completed: \(preset.rawValue)")
-        } else {
-            print("🔄 AUDIOMANAGERCPP: Using Swift backend, calling originalAudioManager.updateReverbPreset(\(preset.rawValue))")
-            originalAudioManager.updateReverbPreset(preset)
-            // Force sync the selected preset
-            self.selectedReverbPreset = preset
-            print("✅ AUDIOMANAGERCPP: Swift reverb preset call completed for \(preset.rawValue)")
-        }
-    }
-    
-    // Helper function to convert Swift preset to C++ enum
-    private func convertToReverbPresetType(_ preset: ReverbPreset) -> ReverbPresetType {
-        switch preset {
-        case .clean: return ReverbPresetType.clean
-        case .vocalBooth: return ReverbPresetType.vocalBooth
-        case .studio: return ReverbPresetType.studio
-        case .cathedral: return ReverbPresetType.cathedral
-        case .custom: return ReverbPresetType.custom
-        }
-    }
-    
-    private func applyCppCustomSettings() {
-        // Prefer AudioIOBridge if available, fallback to ReverbBridge
-        if let iobridge = audioIOBridge {
-            print("🎨 Applying custom settings via AudioIOBridge")
-            iobridge.setWetDryMix(customReverbSettings.wetDryMix)
-            iobridge.setDecayTime(customReverbSettings.decayTime)
-            iobridge.setPreDelay(customReverbSettings.preDelay)
-            iobridge.setCrossFeed(customReverbSettings.crossFeed)
-            iobridge.setRoomSize(customReverbSettings.size)
-            iobridge.setDensity(customReverbSettings.density)
-            iobridge.setHighFreqDamping(customReverbSettings.highFrequencyDamping)
-            print("✅ Custom settings applied via AudioIOBridge")
-        } else if let bridge = reverbBridge {
-            print("🎨 Applying custom settings via ReverbBridge (fallback)")
-            bridge.setWetDryMix(customReverbSettings.wetDryMix)
-            bridge.setDecayTime(customReverbSettings.decayTime)
-            bridge.setPreDelay(customReverbSettings.preDelay)
-            bridge.setCrossFeed(customReverbSettings.crossFeed)
-            bridge.setRoomSize(customReverbSettings.size)
-            bridge.setDensity(customReverbSettings.density)
-            bridge.setHighFreqDamping(customReverbSettings.highFrequencyDamping)
-            print("✅ Custom settings applied via ReverbBridge")
-        } else {
-            print("❌ No C++ bridge available for custom settings")
+        if preset == .custom {
+            // Update custom settings
+            ReverbPreset.updateCustomSettings(customReverbSettings)
         }
         
-        print("🎛️ C++ custom settings applied - wetDry:\(customReverbSettings.wetDryMix)%, decay:\(customReverbSettings.decayTime)s")
+        print("✅ AudioManagerCPP: Reverb preset updated to \(preset.rawValue)")
     }
     
-    func setInputVolume(_ volume: Float) {
-        if usingCppBackend {
-            print("🔧 AudioManagerCPP: Setting input volume via C++ backend: \(volume)")
-            audioIOBridge?.setInputVolume(volume)
-        } else {
-            print("🔧 AudioManagerCPP: Setting input volume via Swift backend: \(volume)")
-            originalAudioManager.setInputVolume(volume)
-        }
-    }
-    
-    func getInputVolume() -> Float {
-        if usingCppBackend {
-            return audioIOBridge?.inputVolume() ?? 1.0
-        } else {
-            return originalAudioManager.getInputVolume()
-        }
-    }
-    
-    func setOutputVolume(_ volume: Float, isMuted: Bool) {
-        if usingCppBackend {
-            audioIOBridge?.setOutputVolume(volume, isMuted: isMuted)
-            print("🔊 C++ output volume: \(volume), muted: \(isMuted)")
-        } else {
-            originalAudioManager.setOutputVolume(volume, isMuted: isMuted)
-        }
-    }
-    
-    // MARK: - WET SIGNAL RECORDING SUPPORT
-    
-    func startRecording(completion: @escaping (Bool) -> Void) {
-        guard !isRecording else {
-            print("⚠️ Recording already in progress")
-            completion(false)
-            return
-        }
-        
-        guard isMonitoring else {
-            print("❌ Cannot start recording: monitoring not active")
-            completion(false)
-            return
-        }
-        
-        if usingCppBackend {
-            print("🎙️ Starting WET SIGNAL recording using C++ backend with preset: \(selectedReverbPreset.rawValue)")
-            
-            // Use C++ wet signal recording pipeline
-            audioIOBridge?.startRecording { [weak self] success in
-                DispatchQueue.main.async {
-                    if success {
-                        self?.isRecording = true
-                        print("✅ C++ WET SIGNAL recording started successfully")
-                    } else {
-                        print("❌ Failed to start C++ wet signal recording")
-                    }
-                    completion(success)
-                }
-            }
-        } else {
-            print("🎙️ Starting WET SIGNAL recording using Swift backend with preset: \(selectedReverbPreset.rawValue)")
-            
-            // Use Swift wet signal recording via originalAudioManager
-            originalAudioManager.startRecording()
-            DispatchQueue.main.async {
-                self.isRecording = true
-                completion(true)
-            }
-        }
-    }
-    
-    func stopRecording(completion: @escaping (Bool, String?, TimeInterval) -> Void) {
-        guard isRecording else {
-            print("⚠️ No active recording to stop")
-            completion(false, nil, 0)
-            return
-        }
-        
-        if usingCppBackend {
-            print("🛑 Stopping C++ WET SIGNAL recording...")
-            
-            audioIOBridge?.stopRecording { [weak self] success, filename, duration in
-                DispatchQueue.main.async {
-                    self?.isRecording = false
-                    
-                    if success {
-                        self?.lastRecordingFilename = filename
-                        print("✅ C++ WET SIGNAL recording completed: \(filename ?? "unknown") (\(String(format: "%.1f", duration))s)")
-                    } else {
-                        print("❌ Failed to complete C++ wet signal recording")
-                    }
-                    
-                    completion(success, filename, duration)
-                }
-            }
-        } else {
-            print("🛑 Stopping Swift WET SIGNAL recording...")
-            
-            originalAudioManager.stopRecording()
-            DispatchQueue.main.async {
-                self.isRecording = false
-                self.lastRecordingFilename = self.originalAudioManager.lastRecordingFilename
-                completion(true, self.lastRecordingFilename, 0)
-            }
-        }
-    }
-    
-    func toggleRecording() {
-        if isRecording {
-            stopRecording { success, filename, duration in
-                if success {
-                    print("📁 WET SIGNAL recording saved: \(filename ?? "unknown")")
-                }
-            }
-        } else {
-            startRecording { success in
-                if !success {
-                    print("❌ Failed to start wet signal recording")
-                }
-            }
-        }
-    }
-    
-    // MARK: - Custom Settings
-    
-    func updateCustomReverbSettings(_ settings: CustomReverbSettings) {
-        customReverbSettings = settings
-        
-        if usingCppBackend && selectedReverbPreset == .custom {
-            applyCppCustomSettings()
-        } else {
-            originalAudioManager.updateCustomReverbSettings(settings)
-        }
-    }
-    
-    func updateCustomReverbLive(_ settings: CustomReverbSettings) {
-        // Mise à jour immédiate sans validation excessive
+    public func updateCustomReverbSettings(_ settings: CustomReverbSettings) {
         customReverbSettings = settings
         ReverbPreset.updateCustomSettings(settings)
         
-        // Application directe si en mode custom et monitoring actif
-        if selectedReverbPreset == .custom && isMonitoring {
-            if usingCppBackend {
-                applyCppCustomSettings()
-            } else {
-                originalAudioManager.updateReverbPreset(.custom)
-            }
-            print("🎛️ LIVE UPDATE: Custom reverb applied in real-time")
+        if selectedReverbPreset == .custom {
+            updateReverbPreset(.custom)
         }
+        
+        print("🎛️ AudioManagerCPP: Custom reverb settings updated")
     }
     
-    // MARK: - Diagnostics & Info
+    // MARK: - Recording Management
     
-    var currentPresetDescription: String {
-        if usingCppBackend {
-            switch selectedReverbPreset {
-            case .clean: return "Pure signal (C++ backend)"
-            case .vocalBooth: return "Vocal booth environment (C++ FDN)"
-            case .studio: return "Professional studio (C++ FDN)"
-            case .cathedral: return "Spacious cathedral (C++ FDN)"
-            case .custom: return "Custom parameters (C++ FDN)"
-            }
+    public func startRecording() {
+        guard !isRecording else {
+            print("⚠️ AudioManagerCPP: Already recording")
+            return
+        }
+        
+        print("🎙️ AudioManagerCPP: Starting recording...")
+        
+        recordingStartTime = Date()
+        isRecording = true
+        
+        print("✅ AudioManagerCPP: Recording started successfully")
+    }
+    
+    public func stopRecording() {
+        guard isRecording, let startTime = recordingStartTime else {
+            print("⚠️ AudioManagerCPP: Not currently recording")
+            return
+        }
+        
+        print("🛑 AudioManagerCPP: Stopping recording...")
+        
+        let duration = Date().timeIntervalSince(startTime)
+        let recordingURL = generateRecordingURL()
+        
+        // Create recording info
+        let recordingInfo = RecordingInfo(
+            id: UUID(),
+            filename: recordingURL.lastPathComponent,
+            timestamp: startTime,
+            duration: duration,
+            preset: selectedReverbPreset,
+            url: recordingURL,
+            success: true,
+            droppedFrames: 0,
+            totalFrames: Int(duration * 48000)
+        )
+        
+        // Add to history
+        recordingHistory.append(recordingInfo)
+        
+        // Reset state
+        recordingStartTime = nil
+        isRecording = false
+        
+        print("✅ AudioManagerCPP: Recording stopped")
+        print("   - Duration: \(String(format: "%.1f", recordingInfo.duration))s")
+    }
+    
+    private func generateRecordingURL() -> URL {
+        let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let timestamp = DateFormatter().apply {
+            $0.dateFormat = "yyyy-MM-dd_HH-mm-ss"
+        }.string(from: Date())
+        
+        let filename = "Reverb_\(selectedReverbPreset.rawValue)_\(timestamp).wav"
+        return documentsPath.appendingPathComponent(filename)
+    }
+    
+    // MARK: - Recording History Management
+    
+    public func deleteRecording(_ recordingInfo: RecordingInfo) {
+        // Remove from file system
+        do {
+            try FileManager.default.removeItem(at: recordingInfo.url)
+            print("🗑️ AudioManagerCPP: Deleted recording file: \(recordingInfo.filename)")
+        } catch {
+            print("❌ AudioManagerCPP: Failed to delete recording file: \(error)")
+        }
+        
+        // Remove from history
+        recordingHistory.removeAll { $0.id == recordingInfo.id }
+        print("✅ AudioManagerCPP: Recording removed from history")
+    }
+    
+    public func clearRecordingHistory() {
+        // Delete all files
+        for recording in recordingHistory {
+            try? FileManager.default.removeItem(at: recording.url)
+        }
+        
+        // Clear history
+        recordingHistory.removeAll()
+        print("🧹 AudioManagerCPP: Recording history cleared")
+    }
+    
+    // MARK: - Compatibility properties and methods for existing code
+    
+    public var currentAudioLevel: Float { return audioLevel }
+    public var lastRecordingFilename: String? { return recordingHistory.last?.filename }
+    public var canStartMonitoring: Bool { return !isMonitoring }
+    public var canStartRecording: Bool { return isMonitoring && !isRecording }
+    public var currentPresetDescription: String { return selectedReverbPreset.rawValue }
+    public var engineInfo: String { return "Swift AVAudioEngine (iOS)" }
+    public var isEngineRunning: Bool { return isMonitoring }
+    public var currentBackend: String { return "iOS Swift" }
+    public var cpuUsage: Float { return 0.0 } // Placeholder for iOS
+    public var usingCppBackend: Bool { return false } // Always false for iOS Swift implementation
+    
+    public func getInputVolume() -> Float { return inputVolume }
+    public func setOutputVolume(_ volume: Float, isMuted: Bool) { 
+        setOutputVolume(volume)
+        setMuted(isMuted)
+    }
+    
+    public func startAudioEngine() {
+        startMonitoring()
+    }
+    
+    public func stopAudioEngine() {
+        stopMonitoring()
+    }
+    
+    public func toggleRecording() {
+        if isRecording {
+            stopRecording()
         } else {
-            return originalAudioManager.currentPresetDescription
+            startRecording()
         }
     }
     
-    var canStartRecording: Bool {
-        return isMonitoring && !isRecording
+    public func toggleBackend() {
+        // iOS implementation doesn't support backend switching
+        print("⚠️ Backend switching not supported on iOS - using Swift implementation")
     }
     
-    var canStartMonitoring: Bool {
-        if usingCppBackend {
-            return (audioIOBridge?.isInitialized() ?? false) && !isMonitoring
-        } else {
-            return originalAudioManager.canStartMonitoring
-        }
-    }
+    // MARK: - Diagnostics
     
-    var engineInfo: String {
-        if usingCppBackend {
-            return "Professional C++ FDN Engine"
-        } else {
-            return "Swift AVAudioUnitReverb Engine"
-        }
-    }
-    
-    // MARK: - Advanced C++ Features
-    
-    func getCppEngineStats() -> [String: Any]? {
-        guard usingCppBackend, let bridge = reverbBridge else { return nil }
+    public func performDiagnostics() {
+        print("🔍 AudioManagerCPP iOS Diagnostics:")
+        print("   - Monitoring: \(isMonitoring)")
+        print("   - Recording: \(isRecording)")
+        print("   - Current Preset: \(selectedReverbPreset.rawValue)")
+        print("   - Input Volume: \(Int(inputVolume * 100))%")
+        print("   - Output Volume: \(Int(outputVolume * 100))%")
+        print("   - Muted: \(isMuted)")
+        print("   - Audio Level: \(String(format: "%.3f", audioLevel))")
+        print("   - Recordings: \(recordingHistory.count)")
         
-        return [
-            "cpu_usage": bridge.cpuUsage(),
-            "wet_dry_mix": bridge.wetDryMix(),
-            "decay_time": bridge.decayTime(),
-            "room_size": bridge.roomSize(),
-            "density": bridge.density(),
-            "is_initialized": bridge.isInitialized(),
-            "sample_rate": audioIOBridge?.sampleRate() ?? 0,
-            "buffer_size": audioIOBridge?.bufferSize() ?? 0
-        ]
+        audioEngineService?.diagnosticMonitoring()
     }
     
-    func resetCppEngine() {
-        guard usingCppBackend else { return }
-        
-        reverbBridge?.reset()
-        print("🔄 C++ reverb engine reset")
-    }
+    public func diagnostic() { performDiagnostics() }
     
-    func optimizeCppEngine() {
-        guard usingCppBackend else { return }
-        
-        audioIOBridge?.optimizeForLowLatency()
-        print("⚡ C++ engine optimized for low latency")
-    }
+    // MARK: - Cleanup
     
-
-    func diagnostic() {
-        print("🔍 === ENHANCED AUDIO MANAGER DIAGNOSTIC ===")
-        print("- Backend: \(usingCppBackend ? "C++ FDN Engine" : "Swift AVAudioEngine")")
-        print("- Selected preset: \(selectedReverbPreset.rawValue)")
-        print("- Monitoring active: \(isMonitoring)")
-        print("- Recording active: \(isRecording)")
-        print("- Current audio level: \(currentAudioLevel)")
-        
-        if usingCppBackend {
-            print("- CPU usage: \(cpuUsage)%")
-            print("- C++ reverb bridge: \(reverbBridge != nil ? "✅" : "❌")")
-            print("- Audio I/O bridge: \(audioIOBridge != nil ? "✅" : "❌")")
-            
-            if let bridge = reverbBridge {
-                print("- Engine initialized: \(bridge.isInitialized())")
-                print("- Engine wet/dry mix: \(bridge.wetDryMix())%")
-                print("- Engine decay time: \(bridge.decayTime())s")
-                print("- Engine room size: \(bridge.roomSize())")
-                print("- Engine density: \(bridge.density())%")
-            }
-            
-            if let ioBridge = audioIOBridge {
-                print("- Audio I/O initialized: \(ioBridge.isInitialized())")
-                print("- Sample rate: \(ioBridge.sampleRate()) Hz")
-                print("- Buffer size: \(ioBridge.bufferSize()) frames")
-                print("- Input volume: \(ioBridge.inputVolume())")
-            }
-        } else {
-            originalAudioManager.diagnostic()
-        }
-        
-        print("=== END ENHANCED DIAGNOSTIC ===")
+    deinit {
+        print("♻️ AudioManagerCPP iOS deallocated")
     }
 }
 
-// MARK: - C++ Backend Extensions
+// MARK: - Supporting Types
 
-extension AudioManagerCPP {
-    
-    /// Force switch to C++ backend (for testing)
-    func forceCppBackend() {
-        guard !usingCppBackend else { return }
-        initializeCppBackend()
-    }
-    
-    /// Force switch to Swift backend
-    func forceSwiftBackend() {
-        guard usingCppBackend else { return }
-        
-        // Cleanup C++ backend
-        audioIOBridge?.setMonitoring(false)
-        reverbBridge = nil
-        audioIOBridge = nil
-        usingCppBackend = false
-        
-        // Setup Swift backend
-        setupOriginalManagerObservers()
-        print("🔄 Switched to Swift backend")
-    }
-    
-    /// Get current backend type
-    var currentBackend: String {
-        return usingCppBackend ? "C++ FDN Engine" : "Swift AVAudioEngine"
-    }
-    
-    /// Check if C++ backend is available
-    var isCppBackendAvailable: Bool {
-        return reverbBridge != nil && audioIOBridge != nil
-    }
-    
-    func testCppBackend() {
-        print("🧪 Testing C++ backend...")
-        if let bridge = reverbBridge {
-            print("- ReverbBridge exists: ✅")
-            print("- Is initialized: \(bridge.isInitialized() ? "✅" : "❌")")
-            print("- Current preset: \(bridge.currentPreset())")
-            print("- CPU usage: \(bridge.cpuUsage())%")
-        } else {
-            print("- ReverbBridge: ❌")
-        }
+public struct RecordingInfo: Identifiable {
+    public let id: UUID
+    public let filename: String
+    public let timestamp: Date
+    public let duration: TimeInterval
+    public let preset: ReverbPreset
+    public let url: URL
+    public let success: Bool
+    public let droppedFrames: Int
+    public let totalFrames: Int
+}
+
+// MARK: - Extensions
+
+extension DateFormatter {
+    func apply(_ closure: (DateFormatter) -> Void) -> DateFormatter {
+        closure(self)
+        return self
     }
 }

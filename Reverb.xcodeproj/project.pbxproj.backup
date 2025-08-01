@@ -14,7 +14,9 @@
 		00C17FBA2D8B280200930ED5 /* ReverbPreset.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00C17FB02D8B280200930ED5 /* ReverbPreset.swift */; };
 		00C17FBB2D8B280200930ED5 /* AudioManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00C17FB62D8B280200930ED5 /* AudioManager.swift */; };
 		00D3BDF22E364B3E003A142C /* CrossFeed.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 00D3BDEA2E364B3E003A142C /* CrossFeed.cpp */; };
+		00D3BDF32E364B3E003A142C /* AudioIOBridge.mm in Sources */ = {isa = PBXBuildFile; fileRef = 00D3BDE02E364B3E003A142C /* AudioIOBridge.mm */; };
 		00D3BDF42E364B3E003A142C /* ReverbEngine.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 00D3BDF02E364B3E003A142C /* ReverbEngine.cpp */; };
+		00D3BDF52E364B3E003A142C /* ReverbBridge.mm in Sources */ = {isa = PBXBuildFile; fileRef = 00D3BDE22E364B3E003A142C /* ReverbBridge.mm */; };
 		00D3BDF62E364B3E003A142C /* Parameters.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 00D3BDEE2E364B3E003A142C /* Parameters.cpp */; };
 		00D3BDF72E364B3E003A142C /* AudioBuffer.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 00D3BDE82E364B3E003A142C /* AudioBuffer.cpp */; };
 		00D3BDF82E364B3E003A142C /* FDNReverb.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 00D3BDEC2E364B3E003A142C /* FDNReverb.cpp */; };
@@ -22,42 +24,61 @@
 		00E061422E2C5EBC00CE6783 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00E061412E2C5EB800CE6783 /* ContentView.swift */; };
 		6E21C5CC9A657EFD96DC67FC /* libVoiceMonitorDSP.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 70FD85911B871A1B713B03BE /* libVoiceMonitorDSP.a */; };
 		7681F47AE37B8A13854D018E /* libVoiceMonitorBridge.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C52FBCE560E343B9872418BA /* libVoiceMonitorBridge.a */; };
-		A1636FE5F4DD111F6EF05931 /* AudioManagerProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 848DBA3E7336C12AC5A8CC52 /* AudioManagerProtocol.swift */; };
+		A1636FE5F4DD111F6EF05931 /* Reverb/Audio/AudioManagerProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 848DBA3E7336C12AC5A8CC52 /* Reverb/Audio/AudioManagerProtocol.swift */; };
 		A1A1A1A1A1A1A1A1A1A1A1A1 /* ReverbApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A1A1A1A1A1A1A1A1A1A1A2 /* ReverbApp.swift */; };
 		A1A1A1A1A1A1A1A1A1A1A1A5 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A1A1A1A1A1A1A1A1A1A1A1A6 /* Assets.xcassets */; };
 		A1A1A1A1A1A1A1A1A1A1A1A7 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A1A1A1A1A1A1A1A1A1A1A1A8 /* Preview Assets.xcassets */; };
 		A1A1A1A1A1A1A1A1A1A1A1AB /* RecordingHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A1A1A1A1A1A1A1A1A1A1AC /* RecordingHistory.swift */; };
-		A6554BDF78F593264E610132 /* AudioManagerCPP.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4BC4E5D106FF875B086A5F1 /* AudioManagerCPP.swift */; };
-		BE9B7167891254AA339A59A0 /* ContentViewSimple.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7900492AE0924F2765AF71F0 /* ContentViewSimple.swift */; };
-		D3D7B8AAED9BCD39DC73B559 /* AudioManagerSimple.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C9B2E6A74172BC935A118B3 /* AudioManagerSimple.swift */; };
-		E724F4CAC91AA45AB0CED8BF /* ContentViewCPP.swift in Sources */ = {isa = PBXBuildFile; fileRef = C360BDD45786A940B2913511 /* ContentViewCPP.swift */; };
-		55E2F15139F74C95816F1004 /* SwiftAudioManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A0FF2D690604A2583503008 /* SwiftAudioManager.swift */; };
-		44E99078631B4C4D86B98D69 /* AudioManagerUltraSimple.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79104D5AA5CB4F88A04F0F17 /* AudioManagerUltraSimple.swift */; };
-		68D474C4D62445C69AE14026 /* RecordingSessionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12B711520F61450295A9E78D /* RecordingSessionManager.swift */; };
-		DFD5DA9B94A24318B4CF46FA /* RecordingControlsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 195AB55606CC43828988DC19 /* RecordingControlsView.swift */; };
-		ACF55B315177423C95AB848E /* WetDryRecordingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 671D09ED951C4060A7F7DCA0 /* WetDryRecordingView.swift */; };
-		6CAD12885BD644AAA0C3DC1F /* WetDryAudioEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 504705C474804E5F8E5F5209 /* WetDryAudioEngine.swift */; };
-		184AA9BDDFD84CF08286151F /* WetDryRecordingManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0F4A9FDA1004094B1EDD769 /* WetDryRecordingManager.swift */; };
-		A8F6B1EA2CA547B9B6E8FC18 /* OfflineReverbProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A468D78A4E24264B7667E9F /* OfflineReverbProcessor.swift */; };
-		E004D60895474028AEDEA408 /* OfflineProcessingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FDFC98A872F4B41948523CA /* OfflineProcessingView.swift */; };
-		D32713FFE6C647D9970C404E /* BatchOfflineProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCE29C51C7954C16AD646C40 /* BatchOfflineProcessor.swift */; };
-		969EBC9D42384B728F9C60FE /* BatchProcessingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B650F16F045D4EBFBE528CAD /* BatchProcessingView.swift */; };
-		88AF111E244B4473AAF0E1A0 /* CrossPlatformAudioSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9D16CE5A9944787ABFFA545 /* CrossPlatformAudioSession.swift */; };
-		DF4F0098E4084141B1DA1D6D /* iOSMainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE1CD032FAFD4AE8A834154E /* iOSMainView.swift */; };
-		B45412613C4541BB94EB1958 /* iOSRealtimeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0ED3630DBDD242B7B75B423C /* iOSRealtimeView.swift */; };
-		A562EF9C8E0148E7B300171F /* iOSOnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7CA7A731DAB4DB483742409 /* iOSOnboardingView.swift */; };
-		7C76A68E74DA4169A64DA91F /* iOSCompactViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABEAFDD52C434C189E100ADC /* iOSCompactViews.swift */; };
-		84D4794CF1B141E58030CEF5 /* BackgroundAudioManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16BFC77ED3A4452D990B2369 /* BackgroundAudioManager.swift */; };
-		3E75381C1B044B44A4C78D81 /* InstrumentsProfiler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72C9C1C9F1AA47B7BF79E0EE /* InstrumentsProfiler.swift */; };
-		D813F8BE186C4AFBBCA1814D /* ResponsiveParameterController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 857A20F7E1024873BA1C5CB7 /* ResponsiveParameterController.swift */; };
-		C943827BFC5244F6A7AD9CB1 /* ParameterResponseTester.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D46A957499D4E1C93C2F527 /* ParameterResponseTester.swift */; };
-		1CAE20B8A1834261B1C2AF8B /* AudioQualityValidator.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBF955FEA35648918230209D /* AudioQualityValidator.swift */; };
-		97222EDBC38541039D6D445B /* iOSRecordingManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BEF7C3C1CEA4C42BD68F009 /* iOSRecordingManager.swift */; };
-		3C83E53AD74C4F04A4A9FF34 /* AudioInterruptionHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = F16F6FB534CE4B358F48A0FA /* AudioInterruptionHandler.swift */; };
-		98B54951613C4486B1AAB0DF /* iOSTapRecordingValidator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99567027362344BD8E1C2225 /* iOSTapRecordingValidator.swift */; };
-		04327A9CB765445B902244A0 /* CrossPlatformAudioComparator.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA9803634F164CB8961680FF /* CrossPlatformAudioComparator.swift */; };
-		67B523194B8F4062937C8DEA /* OptimizedAudioBridge.mm in Sources */ = {isa = PBXBuildFile; fileRef = 3FE80ABEC73F486FA12D096E /* OptimizedAudioBridge.mm */; };
-		/* End PBXBuildFile section */
+		A6554BDF78F593264E610132 /* Reverb/Audio/AudioManagerCPP.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4BC4E5D106FF875B086A5F1 /* Reverb/Audio/AudioManagerCPP.swift */; };
+		BE9B7167891254AA339A59A0 /* Reverb/ContentViewSimple.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7900492AE0924F2765AF71F0 /* Reverb/ContentViewSimple.swift */; };
+		D3D7B8AAED9BCD39DC73B559 /* Reverb/Audio/AudioManagerSimple.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C9B2E6A74172BC935A118B3 /* Reverb/Audio/AudioManagerSimple.swift */; };
+		E724F4CAC91AA45AB0CED8BF /* Reverb/ContentViewCPP.swift in Sources */ = {isa = PBXBuildFile; fileRef = C360BDD45786A940B2913511 /* Reverb/ContentViewCPP.swift */; };
+		EF2946CBCE6B4926A22D6658 /* WetDryRecordingManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 264072F9AC7445C1A803E54B /* WetDryRecordingManager.swift */; };
+		1F8EFFDB10A6439FB2485F3E /* AudioManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBE415324EE0487DB254B233 /* AudioManager.swift */; };
+		7954B5153F6F41B0AF755EA7 /* RecordingSessionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97EA9BDE4C0A47C3BCBDDD5A /* RecordingSessionManager.swift */; };
+		B39CADFEEF4F4354BBE2B317 /* AudioManagerUltraSimple.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1480342C7E224C279C11D01D /* AudioManagerUltraSimple.swift */; };
+		99A939701D244E478F4245C3 /* SwiftAudioManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 197027A8189A41878744F216 /* SwiftAudioManager.swift */; };
+		92D765F9C4934F49BFDE1D98 /* BackgroundAudioManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EED1D604F64456D9B03B3AF /* BackgroundAudioManager.swift */; };
+		C4D0EB04CFF64366856AA532 /* InstrumentsProfiler.swift in Sources */ = {isa = PBXBuildFile; fileRef = D45FA23509824EDBA1BF4095 /* InstrumentsProfiler.swift */; };
+		6613CC1512B54C5FA6EE8F15 /* OptimizedAudioBridge.mm in Sources */ = {isa = PBXBuildFile; fileRef = 9B24E0AA101142BE98886EA3 /* OptimizedAudioBridge.mm */; };
+		856F8E33DE5141D28278A3A5 /* CustomReverbSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24E1945A5B224C7784BE760E /* CustomReverbSettings.swift */; };
+		EF624416468749F9B221089E /* ReverbPreset.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBCE2BDCF514432BB111BDFE /* ReverbPreset.swift */; };
+		48013A22371F4C7BA105EF2E /* iOSTapRecordingValidator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5094A848D0874F7F8C043C7E /* iOSTapRecordingValidator.swift */; };
+		F33BDA50375A4650BE067252 /* CrossPlatformAudioComparator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BB25F60150648C4953A12DA /* CrossPlatformAudioComparator.swift */; };
+		26E618C916B340009C8A3F7E /* WetDryAudioEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CEB7540C7DF4B7997D46429 /* WetDryAudioEngine.swift */; };
+		8C5B5DFA43F34C408D82CABB /* RecordingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34F89A15BA824C32B027E62B /* RecordingService.swift */; };
+		935226991A714C67B0B26141 /* AudioInterruptionHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = A490F85318DA4D7093C56F78 /* AudioInterruptionHandler.swift */; };
+		198A30F9C2F04E7F9BB70D60 /* AudioQualityValidator.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1044FDE37054B58AD98378B /* AudioQualityValidator.swift */; };
+		0CF42C9FF51E41B2A8A54730 /* OfflineReverbProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2908747BB4E448BAC4A213E /* OfflineReverbProcessor.swift */; };
+		EFA11756C0194E85BC1A0353 /* AudioEngineService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70F2019A20E44D9588A30A10 /* AudioEngineService.swift */; };
+		F1E76CF65A9C47CCAA7029C0 /* BatchOfflineProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4959FB04181405C8055C44E /* BatchOfflineProcessor.swift */; };
+		1CDDFC5577F64FA0B27F619F /* CrossPlatformAudioSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77479C34C47748FFA591869B /* CrossPlatformAudioSession.swift */; };
+		D419A4B1A7DA4B578C9FCB3D /* iOSRecordingManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72F12ABB2813481E8C54351F /* iOSRecordingManager.swift */; };
+		6636576435FE4BAABE5612B2 /* RecordingControlsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4363FC64711494BA59B7ACC /* RecordingControlsView.swift */; };
+		421B15416FE04C8588A2C3B8 /* BatchProcessingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9567DC8B064495A8B8633FB /* BatchProcessingView.swift */; };
+		2B63DE9EB7BA4C81B88DEDA4 /* WetDryRecordingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4245001341434433B80CDD43 /* WetDryRecordingView.swift */; };
+		FBE82E51D2DA4C949D05BA4C /* OfflineProcessingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C2FD13DF4B0454ABA40D65B /* OfflineProcessingView.swift */; };
+		0342E9D5DA854052A45523F0 /* iOSRealtimeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DDD1E294DAC47D580B587C9 /* iOSRealtimeView.swift */; };
+		ADDC6E20D4B74284BEEEAC68 /* iOSOnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC727D9646A041B6A43C22EB /* iOSOnboardingView.swift */; };
+		C72A0133BB1B4B9FBF7FE233 /* iOSCompactViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3BD15998EE9454D892CEB75 /* iOSCompactViews.swift */; };
+		B868EEDBD13E4B798786DD9F /* iOSMainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F679DB1F412540FB9C70DEC7 /* iOSMainView.swift */; };
+		3D30AB604B2345C6A2840FA5 /* ParameterResponseTester.swift in Sources */ = {isa = PBXBuildFile; fileRef = C09EADB2465A4AB388BCDCCB /* ParameterResponseTester.swift */; };
+		82A7A593B3474158AE247732 /* ResponsiveParameterController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0DDE997F1142B0AA1080D7 /* ResponsiveParameterController.swift */; };
+		C0A14860C5DE4A5D8347C079 /* AudioIOBridge.mm in Sources */ = {isa = PBXBuildFile; fileRef = F2B11C8466294638804928C9 /* AudioIOBridge.mm */; };
+		85268022A63C4577A83E48E3 /* ReverbBridge.mm in Sources */ = {isa = PBXBuildFile; fileRef = BFCF7C7FE8594FA0B02049E5 /* ReverbBridge.mm */; };
+		4B1A5D7A635F48EEBD240046 /* Parameters.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 2485D6913411474099C86749 /* Parameters.cpp */; };
+		7EBCA7635D4B4EDF87F2BA24 /* FDNReverb.cpp in Sources */ = {isa = PBXBuildFile; fileRef = DBE1F6A5D549424CBA00905B /* FDNReverb.cpp */; };
+		98B8B7673DAA4458A530B787 /* CrossFeed.cpp in Sources */ = {isa = PBXBuildFile; fileRef = C27291DA8BD2498BAD15A467 /* CrossFeed.cpp */; };
+		F6241BD84D0D4D858E164658 /* AudioBuffer.cpp in Sources */ = {isa = PBXBuildFile; fileRef = C13158E22C2A407A9CA00D8F /* AudioBuffer.cpp */; };
+		558FCC128FDD45D5A64BC27E /* ReverbEngine.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 07111738DD6D4380AF7B2834 /* ReverbEngine.cpp */; };
+		D550FE9DF720492798EACF21 /* AudioMath.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 429795E7B1504801BAD2DD10 /* AudioMath.cpp */; };
+		D6C62FDE61074369849D3A6D /* AudioMath.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F7A9E96AEB334F019B2C5286 /* AudioMath.cpp */; };
+		50E81661B80547D585AC4157 /* Parameters.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 6B225A5FF69B4B5F8FC81E23 /* Parameters.cpp */; };
+		8A3FAB8A2ECE4E6EBF538212 /* FDNReverb.cpp in Sources */ = {isa = PBXBuildFile; fileRef = CC3A57B17CAB458F9F071CE8 /* FDNReverb.cpp */; };
+		B7195749152D462EA5419726 /* CrossFeed.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 53A3E7EED24741EAB592CAE5 /* CrossFeed.cpp */; };
+		1FAC1B347F474AD8A8DF7195 /* AudioBuffer.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 9AAB383EC6EF4032B77C2971 /* AudioBuffer.cpp */; };
+		6B734058E4D7420295201A7F /* ReverbEngine.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0CB499661CDF48A39615755A /* ReverbEngine.cpp */; };
+/* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		00572E9D2E2D415B00CBAA77 /* CustomReverbSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomReverbSettings.swift; sourceTree = "<group>"; };
@@ -67,7 +88,9 @@
 		00C17FB32D8B280200930ED5 /* RecordingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingService.swift; sourceTree = "<group>"; };
 		00C17FB62D8B280200930ED5 /* AudioManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioManager.swift; sourceTree = "<group>"; };
 		00D3BDDF2E364B3E003A142C /* AudioIOBridge.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AudioIOBridge.h; sourceTree = "<group>"; };
+		00D3BDE02E364B3E003A142C /* AudioIOBridge.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = AudioIOBridge.mm; sourceTree = "<group>"; };
 		00D3BDE12E364B3E003A142C /* ReverbBridge.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ReverbBridge.h; sourceTree = "<group>"; };
+		00D3BDE22E364B3E003A142C /* ReverbBridge.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = ReverbBridge.mm; sourceTree = "<group>"; };
 		00D3BDE42E364B3E003A142C /* AudioMath.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = AudioMath.hpp; sourceTree = "<group>"; };
 		00D3BDE52E364B3E003A142C /* AudioMath.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = AudioMath.cpp; sourceTree = "<group>"; };
 		00D3BDE72E364B3E003A142C /* AudioBuffer.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = AudioBuffer.hpp; sourceTree = "<group>"; };
@@ -81,51 +104,84 @@
 		00D3BDEF2E364B3E003A142C /* ReverbEngine.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = ReverbEngine.hpp; sourceTree = "<group>"; };
 		00D3BDF02E364B3E003A142C /* ReverbEngine.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = ReverbEngine.cpp; sourceTree = "<group>"; };
 		00E061412E2C5EB800CE6783 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
-		1C9B2E6A74172BC935A118B3 /* AudioManagerSimple.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioManagerSimple.swift; sourceTree = "<group>"; };
+		1C9B2E6A74172BC935A118B3 /* Reverb/Audio/AudioManagerSimple.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Reverb/Audio/AudioManagerSimple.swift; sourceTree = "<group>"; };
 		70FD85911B871A1B713B03BE /* libVoiceMonitorDSP.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libVoiceMonitorDSP.a; path = Reverb/CPPLibs/libVoiceMonitorDSP.a; sourceTree = "<group>"; };
-		7900492AE0924F2765AF71F0 /* ContentViewSimple.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentViewSimple.swift; sourceTree = "<group>"; };
-		848DBA3E7336C12AC5A8CC52 /* AudioManagerProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioManagerProtocol.swift; sourceTree = "<group>"; };
+		7900492AE0924F2765AF71F0 /* Reverb/ContentViewSimple.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Reverb/ContentViewSimple.swift; sourceTree = "<group>"; };
+		848DBA3E7336C12AC5A8CC52 /* Reverb/Audio/AudioManagerProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Reverb/Audio/AudioManagerProtocol.swift; sourceTree = "<group>"; };
 		A1A1A1A1A1A1A1A1A1A1A1A2 /* ReverbApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReverbApp.swift; sourceTree = "<group>"; };
 		A1A1A1A1A1A1A1A1A1A1A1A6 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A1A1A1A1A1A1A1A1A1A1A1A8 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		A1A1A1A1A1A1A1A1A1A1A1AC /* RecordingHistory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingHistory.swift; sourceTree = "<group>"; };
 		A1A1A1A1A1A1A1A1A1A1A1AD /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A1A1A1A1A1A1A1A1A1A1A1B1 /* Reverb.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Reverb.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		B4BC4E5D106FF875B086A5F1 /* AudioManagerCPP.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioManagerCPP.swift; sourceTree = "<group>"; };
-		C360BDD45786A940B2913511 /* ContentViewCPP.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentViewCPP.swift; sourceTree = "<group>"; };
+		B4BC4E5D106FF875B086A5F1 /* Reverb/Audio/AudioManagerCPP.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Reverb/Audio/AudioManagerCPP.swift; sourceTree = "<group>"; };
+		C360BDD45786A940B2913511 /* Reverb/ContentViewCPP.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Reverb/ContentViewCPP.swift; sourceTree = "<group>"; };
 		C52FBCE560E343B9872418BA /* libVoiceMonitorBridge.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libVoiceMonitorBridge.a; path = Reverb/CPPLibs/libVoiceMonitorBridge.a; sourceTree = "<group>"; };
-		9A0FF2D690604A2583503008 /* SwiftAudioManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftAudioManager.swift; sourceTree = "<group>"; };
-		79104D5AA5CB4F88A04F0F17 /* AudioManagerUltraSimple.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioManagerUltraSimple.swift; sourceTree = "<group>"; };
-		12B711520F61450295A9E78D /* RecordingSessionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingSessionManager.swift; sourceTree = "<group>"; };
-		195AB55606CC43828988DC19 /* RecordingControlsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingControlsView.swift; sourceTree = "<group>"; };
-		671D09ED951C4060A7F7DCA0 /* WetDryRecordingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WetDryRecordingView.swift; sourceTree = "<group>"; };
-		504705C474804E5F8E5F5209 /* WetDryAudioEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WetDryAudioEngine.swift; sourceTree = "<group>"; };
-		A0F4A9FDA1004094B1EDD769 /* WetDryRecordingManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WetDryRecordingManager.swift; sourceTree = "<group>"; };
-		1A468D78A4E24264B7667E9F /* OfflineReverbProcessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineReverbProcessor.swift; sourceTree = "<group>"; };
-		1FDFC98A872F4B41948523CA /* OfflineProcessingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineProcessingView.swift; sourceTree = "<group>"; };
-		DCE29C51C7954C16AD646C40 /* BatchOfflineProcessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatchOfflineProcessor.swift; sourceTree = "<group>"; };
-		B650F16F045D4EBFBE528CAD /* BatchProcessingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatchProcessingView.swift; sourceTree = "<group>"; };
-		A9D16CE5A9944787ABFFA545 /* CrossPlatformAudioSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrossPlatformAudioSession.swift; sourceTree = "<group>"; };
-		EE1CD032FAFD4AE8A834154E /* iOSMainView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = iOSMainView.swift; sourceTree = "<group>"; };
-		0ED3630DBDD242B7B75B423C /* iOSRealtimeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = iOSRealtimeView.swift; sourceTree = "<group>"; };
-		D7CA7A731DAB4DB483742409 /* iOSOnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = iOSOnboardingView.swift; sourceTree = "<group>"; };
-		ABEAFDD52C434C189E100ADC /* iOSCompactViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = iOSCompactViews.swift; sourceTree = "<group>"; };
-		16BFC77ED3A4452D990B2369 /* BackgroundAudioManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundAudioManager.swift; sourceTree = "<group>"; };
-		72C9C1C9F1AA47B7BF79E0EE /* InstrumentsProfiler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstrumentsProfiler.swift; sourceTree = "<group>"; };
-		857A20F7E1024873BA1C5CB7 /* ResponsiveParameterController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResponsiveParameterController.swift; sourceTree = "<group>"; };
-		7D46A957499D4E1C93C2F527 /* ParameterResponseTester.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParameterResponseTester.swift; sourceTree = "<group>"; };
-		DBF955FEA35648918230209D /* AudioQualityValidator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioQualityValidator.swift; sourceTree = "<group>"; };
-		6BEF7C3C1CEA4C42BD68F009 /* iOSRecordingManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = iOSRecordingManager.swift; sourceTree = "<group>"; };
-		F16F6FB534CE4B358F48A0FA /* AudioInterruptionHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioInterruptionHandler.swift; sourceTree = "<group>"; };
-		99567027362344BD8E1C2225 /* iOSTapRecordingValidator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = iOSTapRecordingValidator.swift; sourceTree = "<group>"; };
-		CA9803634F164CB8961680FF /* CrossPlatformAudioComparator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrossPlatformAudioComparator.swift; sourceTree = "<group>"; };
-		4D5F896CD50D4766A74D6CB8 /* Reverb-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Reverb-Bridging-Header.h"; sourceTree = "<group>"; };
-		3FE80ABEC73F486FA12D096E /* OptimizedAudioBridge.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = OptimizedAudioBridge.mm; sourceTree = "<group>"; };
-		CBD7897A47444A39967FD3A1 /* ARM64Optimizations.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = ARM64Optimizations.hpp; sourceTree = "<group>"; };
-		F68BB61EEB7446D196F31B3D /* vDSPIntegration.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = vDSPIntegration.hpp; sourceTree = "<group>"; };
-		7F612148ED614A4598FEA247 /* MemoryBatteryManager.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = MemoryBatteryManager.hpp; sourceTree = "<group>"; };
-		5A16E4E51C7A402C8826417B /* ParameterSmoothing.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = ParameterSmoothing.hpp; sourceTree = "<group>"; };
-		/* End PBXFileReference section */
+		264072F9AC7445C1A803E54B /* WetDryRecordingManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WetDryRecordingManager.swift"; sourceTree = "<group>"; };
+		BBE415324EE0487DB254B233 /* AudioManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AudioManager.swift"; sourceTree = "<group>"; };
+		97EA9BDE4C0A47C3BCBDDD5A /* RecordingSessionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RecordingSessionManager.swift"; sourceTree = "<group>"; };
+		1480342C7E224C279C11D01D /* AudioManagerUltraSimple.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AudioManagerUltraSimple.swift"; sourceTree = "<group>"; };
+		197027A8189A41878744F216 /* SwiftAudioManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SwiftAudioManager.swift"; sourceTree = "<group>"; };
+		2EED1D604F64456D9B03B3AF /* BackgroundAudioManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BackgroundAudioManager.swift"; sourceTree = "<group>"; };
+		D45FA23509824EDBA1BF4095 /* InstrumentsProfiler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "InstrumentsProfiler.swift"; sourceTree = "<group>"; };
+		9B24E0AA101142BE98886EA3 /* OptimizedAudioBridge.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = "OptimizedAudioBridge.mm"; sourceTree = "<group>"; };
+		C4BCEFF3A0EF473DACEABD16 /* ARM64Optimizations.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = "ARM64Optimizations.hpp"; sourceTree = "<group>"; };
+		7B485814F867443A9AB2C354 /* vDSPIntegration.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = "vDSPIntegration.hpp"; sourceTree = "<group>"; };
+		DA3E87A2A3E743D896F265CB /* MemoryBatteryManager.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = "MemoryBatteryManager.hpp"; sourceTree = "<group>"; };
+		24E1945A5B224C7784BE760E /* CustomReverbSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CustomReverbSettings.swift"; sourceTree = "<group>"; };
+		EBCE2BDCF514432BB111BDFE /* ReverbPreset.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ReverbPreset.swift"; sourceTree = "<group>"; };
+		5094A848D0874F7F8C043C7E /* iOSTapRecordingValidator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "iOSTapRecordingValidator.swift"; sourceTree = "<group>"; };
+		5BB25F60150648C4953A12DA /* CrossPlatformAudioComparator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CrossPlatformAudioComparator.swift"; sourceTree = "<group>"; };
+		8CEB7540C7DF4B7997D46429 /* WetDryAudioEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WetDryAudioEngine.swift"; sourceTree = "<group>"; };
+		34F89A15BA824C32B027E62B /* RecordingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RecordingService.swift"; sourceTree = "<group>"; };
+		A490F85318DA4D7093C56F78 /* AudioInterruptionHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AudioInterruptionHandler.swift"; sourceTree = "<group>"; };
+		D1044FDE37054B58AD98378B /* AudioQualityValidator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AudioQualityValidator.swift"; sourceTree = "<group>"; };
+		D2908747BB4E448BAC4A213E /* OfflineReverbProcessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "OfflineReverbProcessor.swift"; sourceTree = "<group>"; };
+		70F2019A20E44D9588A30A10 /* AudioEngineService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AudioEngineService.swift"; sourceTree = "<group>"; };
+		A4959FB04181405C8055C44E /* BatchOfflineProcessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BatchOfflineProcessor.swift"; sourceTree = "<group>"; };
+		77479C34C47748FFA591869B /* CrossPlatformAudioSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CrossPlatformAudioSession.swift"; sourceTree = "<group>"; };
+		72F12ABB2813481E8C54351F /* iOSRecordingManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "iOSRecordingManager.swift"; sourceTree = "<group>"; };
+		E4363FC64711494BA59B7ACC /* RecordingControlsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RecordingControlsView.swift"; sourceTree = "<group>"; };
+		C9567DC8B064495A8B8633FB /* BatchProcessingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BatchProcessingView.swift"; sourceTree = "<group>"; };
+		4245001341434433B80CDD43 /* WetDryRecordingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WetDryRecordingView.swift"; sourceTree = "<group>"; };
+		1C2FD13DF4B0454ABA40D65B /* OfflineProcessingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "OfflineProcessingView.swift"; sourceTree = "<group>"; };
+		4DDD1E294DAC47D580B587C9 /* iOSRealtimeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "iOSRealtimeView.swift"; sourceTree = "<group>"; };
+		CC727D9646A041B6A43C22EB /* iOSOnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "iOSOnboardingView.swift"; sourceTree = "<group>"; };
+		C3BD15998EE9454D892CEB75 /* iOSCompactViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "iOSCompactViews.swift"; sourceTree = "<group>"; };
+		F679DB1F412540FB9C70DEC7 /* iOSMainView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "iOSMainView.swift"; sourceTree = "<group>"; };
+		C09EADB2465A4AB388BCDCCB /* ParameterResponseTester.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ParameterResponseTester.swift"; sourceTree = "<group>"; };
+		1F0DDE997F1142B0AA1080D7 /* ResponsiveParameterController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ResponsiveParameterController.swift"; sourceTree = "<group>"; };
+		261C28DDA57947B899631179 /* Reverb-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Reverb-Bridging-Header.h"; sourceTree = "<group>"; };
+		D0E3270F37E243DA9D1CF114 /* ReverbBridge.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "ReverbBridge.h"; sourceTree = "<group>"; };
+		0D73532C59234B47B05F0C60 /* AudioIOBridge.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "AudioIOBridge.h"; sourceTree = "<group>"; };
+		F2B11C8466294638804928C9 /* AudioIOBridge.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = "AudioIOBridge.mm"; sourceTree = "<group>"; };
+		BFCF7C7FE8594FA0B02049E5 /* ReverbBridge.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = "ReverbBridge.mm"; sourceTree = "<group>"; };
+		2485D6913411474099C86749 /* Parameters.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "Parameters.cpp"; sourceTree = "<group>"; };
+		DBE1F6A5D549424CBA00905B /* FDNReverb.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "FDNReverb.cpp"; sourceTree = "<group>"; };
+		C27291DA8BD2498BAD15A467 /* CrossFeed.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "CrossFeed.cpp"; sourceTree = "<group>"; };
+		C13158E22C2A407A9CA00D8F /* AudioBuffer.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "AudioBuffer.cpp"; sourceTree = "<group>"; };
+		07111738DD6D4380AF7B2834 /* ReverbEngine.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "ReverbEngine.cpp"; sourceTree = "<group>"; };
+		D2A8BDA4C0B54EB99E938BF1 /* ReverbEngine.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = "ReverbEngine.hpp"; sourceTree = "<group>"; };
+		3B56186217854CA99FE4E311 /* CrossFeed.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = "CrossFeed.hpp"; sourceTree = "<group>"; };
+		FA2939D8725646E8853916D6 /* AudioBuffer.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = "AudioBuffer.hpp"; sourceTree = "<group>"; };
+		D4779208F4C04B53A02413A6 /* Parameters.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = "Parameters.hpp"; sourceTree = "<group>"; };
+		29C8B1686A1343D1B03E8141 /* FDNReverb.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = "FDNReverb.hpp"; sourceTree = "<group>"; };
+		429795E7B1504801BAD2DD10 /* AudioMath.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "AudioMath.cpp"; sourceTree = "<group>"; };
+		CBF7DA434E13459EADE8E79B /* AudioMath.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = "AudioMath.hpp"; sourceTree = "<group>"; };
+		F7A9E96AEB334F019B2C5286 /* AudioMath.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "AudioMath.cpp"; sourceTree = "<group>"; };
+		59B2BDCC2C214F26B80A8CB4 /* AudioMath.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = "AudioMath.hpp"; sourceTree = "<group>"; };
+		6B225A5FF69B4B5F8FC81E23 /* Parameters.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "Parameters.cpp"; sourceTree = "<group>"; };
+		CC3A57B17CAB458F9F071CE8 /* FDNReverb.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "FDNReverb.cpp"; sourceTree = "<group>"; };
+		53A3E7EED24741EAB592CAE5 /* CrossFeed.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "CrossFeed.cpp"; sourceTree = "<group>"; };
+		9AAB383EC6EF4032B77C2971 /* AudioBuffer.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "AudioBuffer.cpp"; sourceTree = "<group>"; };
+		0CB499661CDF48A39615755A /* ReverbEngine.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "ReverbEngine.cpp"; sourceTree = "<group>"; };
+		836582E30254469AA753E6DB /* ReverbEngine.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = "ReverbEngine.hpp"; sourceTree = "<group>"; };
+		7BE8951D1EC84F029865C013 /* CrossFeed.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = "CrossFeed.hpp"; sourceTree = "<group>"; };
+		97A3CF57001A417099D59353 /* AudioBuffer.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = "AudioBuffer.hpp"; sourceTree = "<group>"; };
+		1A6AAB1317D243C097BA776C /* Parameters.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = "Parameters.hpp"; sourceTree = "<group>"; };
+		0CDAEFBB6F924936B3158157 /* FDNReverb.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = "FDNReverb.hpp"; sourceTree = "<group>"; };
+		4BCC7F0FD6D2401F85FC80DC /* ParameterSmoothing.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = "ParameterSmoothing.hpp"; sourceTree = "<group>"; };
+/* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		A1A1A1A1A1A1A1A1A1A1A1B2 /* Frameworks */ = {
@@ -154,14 +210,6 @@
 			children = (
 				00C17FB22D8B280200930ED5 /* AudioEngineService.swift */,
 				00C17FB32D8B280200930ED5 /* RecordingService.swift */,
-			
-				504705C474804E5F8E5F5209 /* WetDryAudioEngine.swift */,
-				1A468D78A4E24264B7667E9F /* OfflineReverbProcessor.swift */,
-				DCE29C51C7954C16AD646C40 /* BatchOfflineProcessor.swift */,
-				A9D16CE5A9944787ABFFA545 /* CrossPlatformAudioSession.swift */,
-				DBF955FEA35648918230209D /* AudioQualityValidator.swift */,
-				6BEF7C3C1CEA4C42BD68F009 /* iOSRecordingManager.swift */,
-				F16F6FB534CE4B358F48A0FA /* AudioInterruptionHandler.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -180,18 +228,6 @@
 				00C17FB42D8B280200930ED5 /* Services */,
 				00C17FB52D8B280200930ED5 /* Utils */,
 				00C17FB62D8B280200930ED5 /* AudioManager.swift */,
-				B4BC4E5D106FF875B086A5F1 /* AudioManagerCPP.swift */,
-				1C9B2E6A74172BC935A118B3 /* AudioManagerSimple.swift */,
-				848DBA3E7336C12AC5A8CC52 /* AudioManagerProtocol.swift */,
-			
-				9A0FF2D690604A2583503008 /* SwiftAudioManager.swift */,
-				79104D5AA5CB4F88A04F0F17 /* AudioManagerUltraSimple.swift */,
-				12B711520F61450295A9E78D /* RecordingSessionManager.swift */,
-				A0F4A9FDA1004094B1EDD769 /* WetDryRecordingManager.swift */,
-			
-				00C17FB8D8B280200930ED5 /* Optimization */,
-				00C17FB9D8B280200930ED5 /* DSP */,
-				00C17FBAD8B280200930ED5 /* Testing */,
 			);
 			path = Audio;
 			sourceTree = "<group>";
@@ -199,11 +235,11 @@
 		00D3BDC32E363FAF003A142C /* Recovered References */ = {
 			isa = PBXGroup;
 			children = (
-				C360BDD45786A940B2913511 /* ContentViewCPP.swift */,
-				B4BC4E5D106FF875B086A5F1 /* AudioManagerCPP.swift */,
-				1C9B2E6A74172BC935A118B3 /* AudioManagerSimple.swift */,
-				848DBA3E7336C12AC5A8CC52 /* AudioManagerProtocol.swift */,
-				7900492AE0924F2765AF71F0 /* ContentViewSimple.swift */,
+				C360BDD45786A940B2913511 /* Reverb/ContentViewCPP.swift */,
+				B4BC4E5D106FF875B086A5F1 /* Reverb/Audio/AudioManagerCPP.swift */,
+				1C9B2E6A74172BC935A118B3 /* Reverb/Audio/AudioManagerSimple.swift */,
+				848DBA3E7336C12AC5A8CC52 /* Reverb/Audio/AudioManagerProtocol.swift */,
+				7900492AE0924F2765AF71F0 /* Reverb/ContentViewSimple.swift */,
 				70FD85911B871A1B713B03BE /* libVoiceMonitorDSP.a */,
 				C52FBCE560E343B9872418BA /* libVoiceMonitorBridge.a */,
 			);
@@ -214,7 +250,9 @@
 			isa = PBXGroup;
 			children = (
 				00D3BDDF2E364B3E003A142C /* AudioIOBridge.h */,
+				00D3BDE02E364B3E003A142C /* AudioIOBridge.mm */,
 				00D3BDE12E364B3E003A142C /* ReverbBridge.h */,
+				00D3BDE22E364B3E003A142C /* ReverbBridge.mm */,
 			);
 			path = AudioBridge;
 			sourceTree = "<group>";
@@ -252,6 +290,7 @@
 			children = (
 				A1A1A1A1A1A1A1A1A1A1A1B4 /* Reverb */,
 				A1A1A1A1A1A1A1A1A1A1A1B5 /* Products */,
+				00D3BDC32E363FAF003A142C /* Recovered References */,
 			);
 			sourceTree = "<group>";
 		};
@@ -262,17 +301,11 @@
 				00C17FB72D8B280200930ED5 /* Audio */,
 				A1A1A1A1A1A1A1A1A1A1A1A2 /* ReverbApp.swift */,
 				00E061412E2C5EB800CE6783 /* ContentView.swift */,
-				C360BDD45786A940B2913511 /* ContentViewCPP.swift */,
-				7900492AE0924F2765AF71F0 /* ContentViewSimple.swift */,
 				A1A1A1A1A1A1A1A1A1A1A1AC /* RecordingHistory.swift */,
 				A1A1A1A1A1A1A1A1A1A1A1AD /* Info.plist */,
 				A1A1A1A1A1A1A1A1A1A1A1A6 /* Assets.xcassets */,
 				A1A1A1A1A1A1A1A1A1A1A1B6 /* Preview Content */,
 				00D3BDF12E364B3E003A142C /* CPPEngine */,
-			
-				00C17FBBD8B280200930ED5 /* Views */,
-			
-				4D5F896CD50D4766A74D6CB8 /* Reverb-Bridging-Header.h */,
 			);
 			path = Reverb;
 			sourceTree = "<group>";
@@ -293,79 +326,7 @@
 			path = "Preview Content";
 			sourceTree = "<group>";
 		};
-
-		00C17FB8D8B280200930ED5 /* Optimization */ = {
-			isa = PBXGroup;
-			children = (
-				16BFC77ED3A4452D990B2369 /* BackgroundAudioManager.swift */,
-				72C9C1C9F1AA47B7BF79E0EE /* InstrumentsProfiler.swift */,
-				3FE80ABEC73F486FA12D096E /* OptimizedAudioBridge.mm */,
-				CBD7897A47444A39967FD3A1 /* ARM64Optimizations.hpp */,
-				F68BB61EEB7446D196F31B3D /* vDSPIntegration.hpp */,
-				7F612148ED614A4598FEA247 /* MemoryBatteryManager.hpp */,
-			);
-			path = Optimization;
-			sourceTree = "<group>";
-		};
-		00C17FB9D8B280200930ED5 /* DSP */ = {
-			isa = PBXGroup;
-			children = (
-				5A16E4E51C7A402C8826417B /* ParameterSmoothing.hpp */,
-			);
-			path = DSP;
-			sourceTree = "<group>";
-		};
-		00C17FBAD8B280200930ED5 /* Testing */ = {
-			isa = PBXGroup;
-			children = (
-				99567027362344BD8E1C2225 /* iOSTapRecordingValidator.swift */,
-				CA9803634F164CB8961680FF /* CrossPlatformAudioComparator.swift */,
-			);
-			path = Testing;
-			sourceTree = "<group>";
-		};
-		00C17FBBD8B280200930ED5 /* Views */ = {
-			isa = PBXGroup;
-			children = (
-				195AB55606CC43828988DC19 /* RecordingControlsView.swift */,
-				671D09ED951C4060A7F7DCA0 /* WetDryRecordingView.swift */,
-				1FDFC98A872F4B41948523CA /* OfflineProcessingView.swift */,
-				B650F16F045D4EBFBE528CAD /* BatchProcessingView.swift */,
-				00C17FBCD8B280200930ED5 /* iOS */,
-			);
-			path = Views;
-			sourceTree = "<group>";
-		};
-		00C17FBCD8B280200930ED5 /* iOS */ = {
-			isa = PBXGroup;
-			children = (
-				EE1CD032FAFD4AE8A834154E /* iOSMainView.swift */,
-				0ED3630DBDD242B7B75B423C /* iOSRealtimeView.swift */,
-				D7CA7A731DAB4DB483742409 /* iOSOnboardingView.swift */,
-				ABEAFDD52C434C189E100ADC /* iOSCompactViews.swift */,
-				00C17FBDD8B280200930ED5 /* Adapters */,
-				00C17FBED8B280200930ED5 /* Testing */,
-			);
-			path = iOS;
-			sourceTree = "<group>";
-		};
-		00C17FBDD8B280200930ED5 /* Adapters */ = {
-			isa = PBXGroup;
-			children = (
-				857A20F7E1024873BA1C5CB7 /* ResponsiveParameterController.swift */,
-			);
-			path = Adapters;
-			sourceTree = "<group>";
-		};
-		00C17FBED8B280200930ED5 /* Testing */ = {
-			isa = PBXGroup;
-			children = (
-				7D46A957499D4E1C93C2F527 /* ParameterResponseTester.swift */,
-			);
-			path = Testing;
-			sourceTree = "<group>";
-		};
-		/* End PBXGroup section */
+/* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
 		A1A1A1A1A1A1A1A1A1A1A1B7 /* Reverb */ = {
@@ -444,44 +405,66 @@
 				00572E9E2E2D416100CBAA77 /* CustomReverbSettings.swift in Sources */,
 				00C17FBA2D8B280200930ED5 /* ReverbPreset.swift in Sources */,
 				00C17FBB2D8B280200930ED5 /* AudioManager.swift in Sources */,
-				E724F4CAC91AA45AB0CED8BF /* ContentViewCPP.swift in Sources */,
-				A6554BDF78F593264E610132 /* AudioManagerCPP.swift in Sources */,
-				D3D7B8AAED9BCD39DC73B559 /* AudioManagerSimple.swift in Sources */,
-				A1636FE5F4DD111F6EF05931 /* AudioManagerProtocol.swift in Sources */,
+				E724F4CAC91AA45AB0CED8BF /* Reverb/ContentViewCPP.swift in Sources */,
+				A6554BDF78F593264E610132 /* Reverb/Audio/AudioManagerCPP.swift in Sources */,
+				D3D7B8AAED9BCD39DC73B559 /* Reverb/Audio/AudioManagerSimple.swift in Sources */,
+				A1636FE5F4DD111F6EF05931 /* Reverb/Audio/AudioManagerProtocol.swift in Sources */,
 				00D3BDF22E364B3E003A142C /* CrossFeed.cpp in Sources */,
+				00D3BDF32E364B3E003A142C /* AudioIOBridge.mm in Sources */,
 				00D3BDF42E364B3E003A142C /* ReverbEngine.cpp in Sources */,
+				00D3BDF52E364B3E003A142C /* ReverbBridge.mm in Sources */,
 				00D3BDF62E364B3E003A142C /* Parameters.cpp in Sources */,
 				00D3BDF72E364B3E003A142C /* AudioBuffer.cpp in Sources */,
 				00D3BDF82E364B3E003A142C /* FDNReverb.cpp in Sources */,
 				00D3BDF92E364B3E003A142C /* AudioMath.cpp in Sources */,
-				BE9B7167891254AA339A59A0 /* ContentViewSimple.swift in Sources */,
+				BE9B7167891254AA339A59A0 /* Reverb/ContentViewSimple.swift in Sources */,
 			
-				55E2F15139F74C95816F1004 /* SwiftAudioManager.swift in Sources */,
-				44E99078631B4C4D86B98D69 /* AudioManagerUltraSimple.swift in Sources */,
-				68D474C4D62445C69AE14026 /* RecordingSessionManager.swift in Sources */,
-				DFD5DA9B94A24318B4CF46FA /* RecordingControlsView.swift in Sources */,
-				ACF55B315177423C95AB848E /* WetDryRecordingView.swift in Sources */,
-				6CAD12885BD644AAA0C3DC1F /* WetDryAudioEngine.swift in Sources */,
-				184AA9BDDFD84CF08286151F /* WetDryRecordingManager.swift in Sources */,
-				A8F6B1EA2CA547B9B6E8FC18 /* OfflineReverbProcessor.swift in Sources */,
-				E004D60895474028AEDEA408 /* OfflineProcessingView.swift in Sources */,
-				D32713FFE6C647D9970C404E /* BatchOfflineProcessor.swift in Sources */,
-				969EBC9D42384B728F9C60FE /* BatchProcessingView.swift in Sources */,
-				88AF111E244B4473AAF0E1A0 /* CrossPlatformAudioSession.swift in Sources */,
-				DF4F0098E4084141B1DA1D6D /* iOSMainView.swift in Sources */,
-				B45412613C4541BB94EB1958 /* iOSRealtimeView.swift in Sources */,
-				A562EF9C8E0148E7B300171F /* iOSOnboardingView.swift in Sources */,
-				7C76A68E74DA4169A64DA91F /* iOSCompactViews.swift in Sources */,
-				84D4794CF1B141E58030CEF5 /* BackgroundAudioManager.swift in Sources */,
-				3E75381C1B044B44A4C78D81 /* InstrumentsProfiler.swift in Sources */,
-				D813F8BE186C4AFBBCA1814D /* ResponsiveParameterController.swift in Sources */,
-				C943827BFC5244F6A7AD9CB1 /* ParameterResponseTester.swift in Sources */,
-				1CAE20B8A1834261B1C2AF8B /* AudioQualityValidator.swift in Sources */,
-				97222EDBC38541039D6D445B /* iOSRecordingManager.swift in Sources */,
-				3C83E53AD74C4F04A4A9FF34 /* AudioInterruptionHandler.swift in Sources */,
-				98B54951613C4486B1AAB0DF /* iOSTapRecordingValidator.swift in Sources */,
-				04327A9CB765445B902244A0 /* CrossPlatformAudioComparator.swift in Sources */,
-				67B523194B8F4062937C8DEA /* OptimizedAudioBridge.mm in Sources */,);
+				EF2946CBCE6B4926A22D6658 /* WetDryRecordingManager.swift in Sources */,
+				1F8EFFDB10A6439FB2485F3E /* AudioManager.swift in Sources */,
+				7954B5153F6F41B0AF755EA7 /* RecordingSessionManager.swift in Sources */,
+				B39CADFEEF4F4354BBE2B317 /* AudioManagerUltraSimple.swift in Sources */,
+				99A939701D244E478F4245C3 /* SwiftAudioManager.swift in Sources */,
+				92D765F9C4934F49BFDE1D98 /* BackgroundAudioManager.swift in Sources */,
+				C4D0EB04CFF64366856AA532 /* InstrumentsProfiler.swift in Sources */,
+				6613CC1512B54C5FA6EE8F15 /* OptimizedAudioBridge.mm in Sources */,
+				856F8E33DE5141D28278A3A5 /* CustomReverbSettings.swift in Sources */,
+				EF624416468749F9B221089E /* ReverbPreset.swift in Sources */,
+				48013A22371F4C7BA105EF2E /* iOSTapRecordingValidator.swift in Sources */,
+				F33BDA50375A4650BE067252 /* CrossPlatformAudioComparator.swift in Sources */,
+				26E618C916B340009C8A3F7E /* WetDryAudioEngine.swift in Sources */,
+				8C5B5DFA43F34C408D82CABB /* RecordingService.swift in Sources */,
+				935226991A714C67B0B26141 /* AudioInterruptionHandler.swift in Sources */,
+				198A30F9C2F04E7F9BB70D60 /* AudioQualityValidator.swift in Sources */,
+				0CF42C9FF51E41B2A8A54730 /* OfflineReverbProcessor.swift in Sources */,
+				EFA11756C0194E85BC1A0353 /* AudioEngineService.swift in Sources */,
+				F1E76CF65A9C47CCAA7029C0 /* BatchOfflineProcessor.swift in Sources */,
+				1CDDFC5577F64FA0B27F619F /* CrossPlatformAudioSession.swift in Sources */,
+				D419A4B1A7DA4B578C9FCB3D /* iOSRecordingManager.swift in Sources */,
+				6636576435FE4BAABE5612B2 /* RecordingControlsView.swift in Sources */,
+				421B15416FE04C8588A2C3B8 /* BatchProcessingView.swift in Sources */,
+				2B63DE9EB7BA4C81B88DEDA4 /* WetDryRecordingView.swift in Sources */,
+				FBE82E51D2DA4C949D05BA4C /* OfflineProcessingView.swift in Sources */,
+				0342E9D5DA854052A45523F0 /* iOSRealtimeView.swift in Sources */,
+				ADDC6E20D4B74284BEEEAC68 /* iOSOnboardingView.swift in Sources */,
+				C72A0133BB1B4B9FBF7FE233 /* iOSCompactViews.swift in Sources */,
+				B868EEDBD13E4B798786DD9F /* iOSMainView.swift in Sources */,
+				3D30AB604B2345C6A2840FA5 /* ParameterResponseTester.swift in Sources */,
+				82A7A593B3474158AE247732 /* ResponsiveParameterController.swift in Sources */,
+				C0A14860C5DE4A5D8347C079 /* AudioIOBridge.mm in Sources */,
+				85268022A63C4577A83E48E3 /* ReverbBridge.mm in Sources */,
+				4B1A5D7A635F48EEBD240046 /* Parameters.cpp in Sources */,
+				7EBCA7635D4B4EDF87F2BA24 /* FDNReverb.cpp in Sources */,
+				98B8B7673DAA4458A530B787 /* CrossFeed.cpp in Sources */,
+				F6241BD84D0D4D858E164658 /* AudioBuffer.cpp in Sources */,
+				558FCC128FDD45D5A64BC27E /* ReverbEngine.cpp in Sources */,
+				D550FE9DF720492798EACF21 /* AudioMath.cpp in Sources */,
+				D6C62FDE61074369849D3A6D /* AudioMath.cpp in Sources */,
+				50E81661B80547D585AC4157 /* Parameters.cpp in Sources */,
+				8A3FAB8A2ECE4E6EBF538212 /* FDNReverb.cpp in Sources */,
+				B7195749152D462EA5419726 /* CrossFeed.cpp in Sources */,
+				1FAC1B347F474AD8A8DF7195 /* AudioBuffer.cpp in Sources */,
+				6B734058E4D7420295201A7F /* ReverbEngine.cpp in Sources */,
+);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */

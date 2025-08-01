@@ -2,6 +2,9 @@ import Foundation
 import AVFoundation
 import OSLog
 
+// MARK: - ReverbBridge forward declaration (defined in AudioEngineService.swift)
+// This allows us to use ReverbBridge type without redeclaring it
+
 /// Offline reverb processor inspired by AD 480 RE offline processing capabilities
 /// Processes audio files through reverb engine faster than real-time using AVAudioEngine.manualRenderingMode
 class OfflineReverbProcessor: ObservableObject {
@@ -274,7 +277,7 @@ class OfflineReverbProcessor: ObservableObject {
         )
         
         // Schedule input file for playback
-        playerNode.scheduleFile(inputFile, at: nil)
+        playerNode.scheduleFile(inputFile, at: nil, completionHandler: nil)
         playerNode.play()
         
         // Process audio in chunks
@@ -288,9 +291,10 @@ class OfflineReverbProcessor: ObservableObject {
             let framesToRender = min(bufferSize, AVAudioFrameCount(totalSamples - processedSamples))
             
             // Manual rendering - this is the key for offline processing
-            try engine.manualRenderingBlock(framesToRender, buffer) { (bufferToFill, frameCount) in
-                bufferToFill.frameLength = frameCount
-                return .success
+            var status: OSStatus = noErr
+            let renderStatus = engine.manualRenderingBlock(framesToRender, buffer.mutableAudioBufferList, &status)
+            if status != noErr {
+                throw NSError(domain: "ReverbProcessingError", code: Int(status), userInfo: [NSLocalizedDescriptionKey: "Manual rendering failed with status: \(status)"])
             }
             
             // Write processed buffer to output file

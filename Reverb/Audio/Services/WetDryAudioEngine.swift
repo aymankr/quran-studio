@@ -417,7 +417,7 @@ class WetDryAudioEngine: ObservableObject {
         
         // Apply to C++ ReverbBridge if available
         if let bridge = reverbBridge {
-            let cppPreset: ReverbPresetType
+            let cppPreset: ReverbBridge.ReverbPresetType
             switch preset {
             case .clean: cppPreset = .clean
             case .vocalBooth: cppPreset = .vocalBooth
@@ -454,7 +454,7 @@ class WetDryAudioEngine: ObservableObject {
         let status = getEngineStatus()
         
         for (key, value) in status {
-            logger.info("- \(key): \(value)")
+            logger.info("- \(key): \(String(describing: value))")
         }
         
         logger.info("=== END DIAGNOSTICS ===")

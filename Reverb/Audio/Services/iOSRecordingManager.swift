@@ -94,7 +94,7 @@ class iOSRecordingManager: NSObject, ObservableObject {
     
     // Tap-based recording
     private var installTapEnabled = false
-    private var recordingTap: AVAudioNodeTap?
+    // private var recordingTap: AVAudioNodeTap? // Type not available, commented out
     
     // MARK: - File Management
     
@@ -149,13 +149,14 @@ class iOSRecordingManager: NSObject, ObservableObject {
     }
     
     func requestRecordingPermission() async -> Bool {
-        let granted = await AVAudioSession.sharedInstance().requestRecordPermission()
-        
-        DispatchQueue.main.async {
-            self.recordingPermissionStatus = granted ? .granted : .denied
+        return await withCheckedContinuation { continuation in
+            AVAudioSession.sharedInstance().requestRecordPermission { granted in
+                DispatchQueue.main.async {
+                    self.recordingPermissionStatus = granted ? .granted : .denied
+                }
+                continuation.resume(returning: granted)
+            }
         }
-        
-        return granted
     }
     
     // MARK: - Recording Operations
@@ -200,10 +201,10 @@ class iOSRecordingManager: NSObject, ObservableObject {
         recordingTimer = nil
         
         // Remove audio engine tap
-        if let tap = recordingTap {
-            audioEngine?.inputNode.removeTap(tap)
-            recordingTap = nil
-        }
+        // if let tap = recordingTap {
+        //     audioEngine?.inputNode.removeTap(tap)
+        //     recordingTap = nil
+        // }
         
         // Stop audio engine
         audioEngine?.stop()

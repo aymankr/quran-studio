@@ -545,13 +545,13 @@ class CrossPlatformAudioComparator: ObservableObject {
     }
     
     private func generateComparisonReport() {
-        print("\n" + "="*60)
+        print("\\n" + String(repeating: "=", count: 60))
         print("🔍 CROSS-PLATFORM AUDIO COMPARISON REPORT")
-        print("="*60)
+        print(String(repeating: "=", count: 60))
         print("Configuration: \(config.sampleRate)Hz, \(config.bufferSize) samples")
-        print("\nOverall Result: \(overallPlatformsMatch ? "✅ PLATFORMS MATCH" : "❌ PLATFORMS DIFFER")")
+        print("\\nOverall Result: \(overallPlatformsMatch ? "✅ PLATFORMS MATCH" : "❌ PLATFORMS DIFFER")")
         print("Platform Similarity: \(String(format: "%.2f", platformSimilarity * 100))%")
-        print("-"*60)
+        print(String(repeating: "-", count: 60))
         
         for result in comparisonResults {
             let status = result.platformsMatch ? "✅ MATCH" : "❌ DIFFER"
@@ -569,7 +569,7 @@ class CrossPlatformAudioComparator: ObservableObject {
             }
         }
         
-        print("\n" + "="*60)
+        print("\\n" + String(repeating: "=", count: 60))
         print("✅ Cross-platform comparison completed")
     }
     

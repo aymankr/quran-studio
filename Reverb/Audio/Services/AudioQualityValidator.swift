@@ -667,14 +667,14 @@ class AudioQualityValidator: ObservableObject {
     }
     
     private func generateValidationReport() {
-        print("\n" + "="*60)
+        print("\n" + String(repeating: "=", count: 60))
         print("🎵 AUDIO QUALITY VALIDATION REPORT")
-        print("="*60)
+        print(String(repeating: "=", count: 60))
         print("Platform: iOS (ARMv8)")
         print("Configuration: 48kHz, 64 samples, 32-bit float")
         print("Target: Identical to macOS output")
         print("\nOverall Grade: \(overallQualityGrade.description)")
-        print("-"*60)
+        print(String(repeating: "-", count: 60))
         
         for result in validationResults {
             let status = result.passed ? "✅ PASS" : "❌ FAIL"
@@ -693,7 +693,7 @@ class AudioQualityValidator: ObservableObject {
             }
         }
         
-        print("\n" + "="*60)
+        print("\n" + String(repeating: "=", count: 60))
         print("✅ Audio quality validation completed")
     }
     

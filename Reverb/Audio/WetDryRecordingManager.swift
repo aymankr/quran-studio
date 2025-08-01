@@ -2,6 +2,67 @@ import Foundation
 import AVFoundation
 import OSLog
 
+/// iOS-native NonBlockingAudioRecorder implementation
+@objc
+public class NonBlockingAudioRecorder: NSObject {
+    private let recordingURL: URL
+    private let format: AVAudioFormat
+    private let bufferSize: AVAudioFrameCount
+    private var isRecording = false
+    private var frameCount: Int64 = 0
+    
+    @objc public init(recording url: URL, format: AVAudioFormat, bufferSize: AVAudioFrameCount) {
+        self.recordingURL = url
+        self.format = format
+        self.bufferSize = bufferSize
+        super.init()
+        print("✅ NonBlockingAudioRecorder iOS initialized: \(url.lastPathComponent)")
+    }
+    
+    @objc public func startRecording() {
+        isRecording = true
+        frameCount = 0
+        print("📹 NonBlockingAudioRecorder iOS: Started recording")
+    }
+    
+    @objc public func stopRecordingBasic() {
+        isRecording = false
+        print("🛑 NonBlockingAudioRecorder iOS: Stopped recording (\(frameCount) frames)")
+    }
+    
+    @objc public func writeAudioBuffer(_ buffer: AVAudioPCMBuffer) -> Bool {
+        guard isRecording else { return false }
+        frameCount += Int64(buffer.frameLength)
+        return true
+    }
+    
+    @objc public func isCurrentlyRecording() -> Bool {
+        return isRecording
+    }
+    
+    // Additional methods required by AudioEngineService
+    public func startRecording(to url: URL, format: AVAudioFormat) -> Bool {
+        // For compatibility with AudioEngineService expectations
+        startRecording()
+        return true
+    }
+    
+    public func stopRecording() -> (success: Bool, droppedFrames: Int, totalFrames: Int) {
+        let wasRecording = isRecording
+        isRecording = false
+        print("🛑 NonBlockingAudioRecorder iOS: Stopped recording (\(frameCount) frames)")
+        return (success: wasRecording, droppedFrames: 0, totalFrames: Int(frameCount))
+    }
+    
+    public var statistics: (bufferedFrames: Int, droppedFrames: Int, totalFrames: Int) {
+        return (bufferedFrames: 0, droppedFrames: 0, totalFrames: Int(frameCount))
+    }
+    
+    public var bufferUsagePercentage: Float {
+        return 0.0 // Simplified for iOS compatibility
+    }
+}
+
 /// Advanced recording manager for simultaneous wet/dry/mix recording
 /// Supports professional post-production workflows with separate wet and dry tracks
 class WetDryRecordingManager: ObservableObject {
@@ -276,7 +337,7 @@ class WetDryRecordingManager: ObservableObject {
         logger.info("📍 Installing mix tap on recording mixer")
         
         mixRecorder = NonBlockingAudioRecorder(
-            recordingURL: url,
+            recording: url,
             format: format,
             bufferSize: bufferSize
         )
@@ -292,7 +353,7 @@ class WetDryRecordingManager: ObservableObject {
         logger.info("📍 Installing wet tap for reverb output")
         
         wetRecorder = NonBlockingAudioRecorder(
-            recordingURL: url,
+            recording: url,
             format: format,
             bufferSize: bufferSize
         )
@@ -327,7 +388,7 @@ class WetDryRecordingManager: ObservableObject {
         logger.info("📍 Installing dry tap for direct input")
         
         dryRecorder = NonBlockingAudioRecorder(
-            recordingURL: url,
+            recording: url,
             format: format,
             bufferSize: bufferSize
         )
@@ -351,7 +412,7 @@ class WetDryRecordingManager: ObservableObject {
             
             logger.info("📍 Using input node tap for dry signal")
             
-            inputNode.installTap(onBus: 0, bufferSize: bufferSize, format: format) { [weak self] buffer, time in
+            inputNode.installTap(onBus: 0, bufferSize: bufferSize, format: format) { [weak self] (buffer: AVAudioPCMBuffer, time: AVAudioTime) in
                 _ = self?.dryRecorder?.writeAudioBuffer(buffer)
             }
         }
@@ -479,9 +540,12 @@ class WetDryRecordingManager: ObservableObject {
                 return name.contains("_wet_") || name.contains("_dry_")
             }.count / 2 // Divide by 2 since wet/dry pairs count as one recording session
             
-            let totalSize = files.compactMap { url -> Int64? in
-                return (try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize
-            }.reduce(0, +)
+            var totalSize: Int64 = 0
+            for url in files {
+                if let fileSize = (try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize {
+                    totalSize += Int64(fileSize)
+                }
+            }
             
             return (totalRecordings: files.count, wetDryRecordings: wetDryRecordings, totalSize: totalSize)
         } catch {

@@ -627,13 +627,13 @@ class iOSTapRecordingValidator: ObservableObject {
     }
     
     private func generateTapValidationReport() {
-        print("\n" + "="*60)
+        print("\n" + String(repeating: "=", count: 60))
         print("🎵 iOS TAP RECORDING VALIDATION REPORT")
-        print("="*60)
+        print(String(repeating: "=", count: 60))
         print("Configuration: \(config.sampleRate)Hz, \(config.bufferSize) samples, \(config.channels) channels")
         print("Test Duration: \(config.testDuration) seconds")
         print("\nOverall Result: \(overallValidationPassed ? "✅ PASSED" : "❌ FAILED")")
-        print("-"*60)
+        print(String(repeating: "-", count: 60))
         
         for result in validationResults {
             let status = result.passed ? "✅ PASS" : "❌ FAIL"
@@ -654,7 +654,7 @@ class iOSTapRecordingValidator: ObservableObject {
             print()
         }
         
-        print("="*60)
+        print(String(repeating: "=", count: 60))
         print("✅ iOS tap recording validation completed")
     }
     

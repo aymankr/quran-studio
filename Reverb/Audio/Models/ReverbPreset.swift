@@ -2,7 +2,7 @@ import Foundation
 import AVFoundation
 
 /// Structure for custom reverb settings
-struct CustomReverbSettings {
+public struct CustomReverbSettings {
     var size: Float = 0.82             // 0.0-1.0 (relates to room dimensions)
     var decayTime: Float = 2.0         // 0.1-8.0 seconds
     var preDelay: Float = 75.0         // 0-200 ms
@@ -15,7 +15,7 @@ struct CustomReverbSettings {
 }
 
 /// Model for reverb presets optimized for Quranic recitation
-enum ReverbPreset: String, CaseIterable, Identifiable {
+public enum ReverbPreset: String, CaseIterable, Identifiable {
     // Préréglages optimisés pour la récitation coranique
     case clean = "Clean"          // Voix pure, sans effet
     case vocalBooth = "Vocal Booth" // Légère ambiance, clarté maximale
@@ -23,7 +23,7 @@ enum ReverbPreset: String, CaseIterable, Identifiable {
     case cathedral = "Cathedral"    // Réverbération noble et profonde
     case custom = "Personnalisé"    // Paramètres personnalisés par l'utilisateur
     
-    var id: String { rawValue }
+    public var id: String { rawValue }
     
     /// Returns the corresponding AVAudioUnitReverbPreset as base
     var preset: AVAudioUnitReverbPreset {

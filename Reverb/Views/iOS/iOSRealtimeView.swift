@@ -23,7 +23,7 @@ struct iOSRealtimeView: View {
     @State private var currentInputLevel: Float = 0.0
     @State private var currentOutputLevel: Float = 0.0
     
-    private let cardColor = Color(.systemGray6)
+    private let cardColor = Color(red: 0.94, green: 0.94, blue: 0.96) // systemGray6 equivalent
     private let accentColor = Color.blue
     
     var body: some View {
@@ -55,15 +55,25 @@ struct iOSRealtimeView: View {
             stopAudioLevelMonitoring()
         }
         .sheet(isPresented: $showingPresetSelector) {
-            iOSPresetSelectorView(
-                selectedPreset: $selectedPreset,
-                onPresetSelected: { preset in
-                    selectPreset(preset)
+            // TODO: Add iOSPresetSelectorView to Xcode project
+            VStack {
+                Text("Preset Selector - Coming Soon")
+                Text("Selected: \(selectedPreset.rawValue)")
+                Button("Close") {
+                    showingPresetSelector = false
                 }
-            )
+            }
+            .padding()
         }
         .sheet(isPresented: $showingCustomSettings) {
-            iOSCustomReverbView(audioManager: audioManager)
+            // TODO: Add iOSCustomReverbView to Xcode project
+            VStack {
+                Text("Custom Reverb Controls - Coming Soon")
+                Button("Close") {
+                    showingCustomSettings = false
+                }
+            }
+            .padding()
         }
     }
     

@@ -16,7 +16,7 @@ class RecordingSessionManager: ObservableObject {
     // MARK: - Private Properties
     private var recordingTimer: Timer?
     private var recordingStartTime: Date?
-    private weak var audioEngineService: AudioEngineService?
+    weak var audioEngineService: AudioEngineService?
     private var currentRecordingDirectory: URL
     
     // MARK: - Types
@@ -159,7 +159,7 @@ class RecordingSessionManager: ObservableObject {
             throw RecordingError.recordingInProgress
         }
         
-        guard recordingPermissionStatus == .granted else {
+        if recordingPermissionStatus != .granted {
             try await requestRecordingPermissions()
         }
         

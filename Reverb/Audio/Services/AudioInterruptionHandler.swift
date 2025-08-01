@@ -2,6 +2,7 @@ import Foundation
 import AVFoundation
 import UIKit
 import CallKit
+import UserNotifications
 
 /// Handles audio interruptions on iOS (phone calls, Siri, FaceTime, etc.)
 /// Manages graceful recording pause/resume and user notifications
@@ -9,7 +10,7 @@ class AudioInterruptionHandler: NSObject, ObservableObject {
     
     // MARK: - Interruption Types
     
-    enum InterruptionType {
+    enum InterruptionType: Equatable {
         case phoneCall           // Incoming/outgoing phone call
         case siri               // Siri activation
         case faceTime           // FaceTime call

@@ -1,0 +1,451 @@
+//
+//  NonBlockingAudioRecorder.mm
+//  Reverb
+//
+//  High-performance non-blocking audio recorder implementation
+//
+
+#import "NonBlockingAudioRecorder.h"
+#import <AudioToolbox/AudioToolbox.h>
+#import <atomic>
+#import <memory>
+#import <mutex>
+
+// Ring buffer for non-blocking audio recording
+class NonBlockingRingBuffer {
+private:
+    std::unique_ptr<float[]> buffer;
+    std::atomic<size_t> writeIndex{0};
+    std::atomic<size_t> readIndex{0};
+    size_t capacity;
+    size_t mask;
+    
+public:
+    NonBlockingRingBuffer(size_t size) {
+        // Round up to next power of 2 for efficient masking
+        capacity = 1;
+        while (capacity < size) capacity <<= 1;
+        mask = capacity - 1;
+        buffer = std::make_unique<float[]>(capacity);
+    }
+    
+    bool write(const float* data, size_t numFrames) {
+        const size_t currentWrite = writeIndex.load();
+        const size_t currentRead = readIndex.load();
+        const size_t available = (currentRead - currentWrite - 1) & mask;
+        
+        if (numFrames > available) {
+            return false; // Buffer full
+        }
+        
+        for (size_t i = 0; i < numFrames; ++i) {
+            buffer[(currentWrite + i) & mask] = data[i];
+        }
+        
+        writeIndex.store((currentWrite + numFrames) & mask);
+        return true;
+    }
+    
+    size_t read(float* data, size_t maxFrames) {
+        const size_t currentWrite = writeIndex.load();
+        const size_t currentRead = readIndex.load();
+        const size_t available = (currentWrite - currentRead) & mask;
+        
+        const size_t toRead = std::min(maxFrames, available);
+        
+        for (size_t i = 0; i < toRead; ++i) {
+            data[i] = buffer[(currentRead + i) & mask];
+        }
+        
+        readIndex.store((currentRead + toRead) & mask);
+        return toRead;
+    }
+    
+    size_t availableFrames() const {
+        return (writeIndex.load() - readIndex.load()) & mask;
+    }
+};
+
+@implementation NonBlockingAudioRecorder {
+    // Audio format
+    AVAudioFormat* _audioFormat;
+    double _sampleRate;
+    NSUInteger _channels;
+    NSUInteger _bufferSize;
+    
+    // File writing
+    ExtAudioFileRef _audioFile;
+    NSString* _outputPath;
+    
+    // Ring buffer for non-blocking operation
+    std::unique_ptr<NonBlockingRingBuffer> _ringBuffer;
+    
+    // Recording state
+    std::atomic<bool> _isRecording{false};
+    std::atomic<bool> _isPaused{false};
+    std::atomic<NSTimeInterval> _recordingStartTime{0};
+    std::atomic<NSUInteger> _totalFramesRecorded{0};
+    std::atomic<NSUInteger> _droppedFrames{0};
+    
+    // Processing thread
+    dispatch_queue_t _processingQueue;
+    dispatch_source_t _processingTimer;
+    
+    // Performance monitoring
+    std::atomic<double> _cpuLoadSum{0.0};
+    std::atomic<NSUInteger> _cpuLoadSamples{0};
+    
+    // Configuration
+    std::atomic<float> _gain{1.0f};
+    std::atomic<NSUInteger> _quality{1}; // 0=low, 1=medium, 2=high
+}
+
+#pragma mark - Initialization
+
+- (instancetype)initWithRecording:(NSURL*)recordingURL
+                           format:(AVAudioFormat*)format
+                       bufferSize:(AVAudioFrameCount)bufferSize {
+    NSString* outputPath = recordingURL.path;
+    double sampleRate = format.sampleRate;
+    NSUInteger channels = format.channelCount;
+    
+    return [self initWithOutputPath:outputPath 
+                         sampleRate:sampleRate 
+                           channels:channels 
+                         bufferSize:(NSUInteger)bufferSize];
+}
+
+- (instancetype)initWithOutputPath:(NSString*)outputPath
+                        sampleRate:(double)sampleRate
+                          channels:(NSUInteger)channels
+                        bufferSize:(NSUInteger)bufferSize {
+    self = [super init];
+    if (self) {
+        _outputPath = [outputPath copy];
+        _sampleRate = sampleRate;
+        _channels = channels;
+        _bufferSize = bufferSize;
+        
+        // Create audio format
+        _audioFormat = [[AVAudioFormat alloc] initWithCommonFormat:AVAudioPCMFormatFloat32
+                                                         sampleRate:sampleRate
+                                                           channels:(AVAudioChannelCount)channels
+                                                        interleaved:NO];
+        
+        // Create ring buffer (5 seconds of audio)
+        const size_t ringBufferSize = (size_t)(sampleRate * 5.0 * channels);
+        _ringBuffer = std::make_unique<NonBlockingRingBuffer>(ringBufferSize);
+        
+        // Create processing queue
+        _processingQueue = dispatch_queue_create("com.reverb.audio.recorder", 
+                                               DISPATCH_QUEUE_SERIAL);
+        
+        // Setup processing timer (process every 10ms)
+        _processingTimer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, _processingQueue);
+        dispatch_source_set_timer(_processingTimer, 
+                                 dispatch_time(DISPATCH_TIME_NOW, 0),
+                                 10 * NSEC_PER_MSEC, // 10ms interval
+                                 1 * NSEC_PER_MSEC);  // 1ms leeway
+        
+        __weak typeof(self) weakSelf = self;
+        dispatch_source_set_event_handler(_processingTimer, ^{
+            [weakSelf processBufferedAudio];
+        });
+    }
+    return self;
+}
+
+- (void)dealloc {
+    [self stopRecording];
+    
+    if (_processingTimer) {
+        dispatch_source_cancel(_processingTimer);
+        _processingTimer = nil;
+    }
+    
+    if (_audioFile) {
+        ExtAudioFileDispose(_audioFile);
+        _audioFile = nil;
+    }
+}
+
+#pragma mark - Recording Control
+
+- (BOOL)startRecording {
+    if (_isRecording.load()) {
+        return YES; // Already recording
+    }
+    
+    // Create output audio file
+    if (![self createOutputAudioFile]) {
+        return NO;
+    }
+    
+    // Start processing timer
+    dispatch_resume(_processingTimer);
+    
+    // Update state
+    _isRecording.store(true);
+    _isPaused.store(false);
+    _recordingStartTime.store(CACurrentMediaTime());
+    _totalFramesRecorded.store(0);
+    _droppedFrames.store(0);
+    _cpuLoadSum.store(0.0);
+    _cpuLoadSamples.store(0);
+    
+    NSLog(@"🎙️ NonBlockingAudioRecorder started: %@", _outputPath);
+    return YES;
+}
+
+- (BOOL)stopRecording {
+    if (!_isRecording.load()) {
+        return YES; // Already stopped
+    }
+    
+    _isRecording.store(false);
+    _isPaused.store(false);
+    
+    // Suspend processing timer
+    dispatch_source_suspend(_processingTimer);
+    
+    // Process any remaining buffered audio
+    dispatch_sync(_processingQueue, ^{
+        [self processBufferedAudio];
+    });
+    
+    // Close audio file
+    if (_audioFile) {
+        ExtAudioFileDispose(_audioFile);
+        _audioFile = nil;
+    }
+    
+    NSLog(@"⏹️ NonBlockingAudioRecorder stopped. Recorded %lu frames", 
+          (unsigned long)_totalFramesRecorded.load());
+    return YES;
+}
+
+- (BOOL)pauseRecording {
+    if (!_isRecording.load() || _isPaused.load()) {
+        return YES;
+    }
+    
+    _isPaused.store(true);
+    NSLog(@"⏸️ NonBlockingAudioRecorder paused");
+    return YES;
+}
+
+- (BOOL)resumeRecording {
+    if (!_isRecording.load() || !_iPaused.load()) {
+        return YES;
+    }
+    
+    _isPaused.store(false);
+    NSLog(@"▶️ NonBlockingAudioRecorder resumed");
+    return YES;
+}
+
+#pragma mark - Audio Processing
+
+- (void)processAudioBuffer:(const float*)audioData
+                numFrames:(NSUInteger)numFrames
+                timestamp:(NSTimeInterval)timestamp {
+    
+    // CRITICAL: This method runs on the real-time audio thread
+    // NO Objective-C method calls, NO memory allocations, NO locks!
+    
+    if (!_isRecording.load() || _isPaused.load()) {
+        return;
+    }
+    
+    // Apply gain
+    const float gain = _gain.load();
+    std::unique_ptr<float[]> processedData;
+    const float* dataToWrite = audioData;
+    
+    if (gain != 1.0f) {
+        processedData = std::make_unique<float[]>(numFrames);
+        for (NSUInteger i = 0; i < numFrames; ++i) {
+            processedData[i] = audioData[i] * gain;
+        }
+        dataToWrite = processedData.get();
+    }
+    
+    // Write to ring buffer (non-blocking)
+    if (!_ringBuffer->write(dataToWrite, numFrames)) {
+        // Ring buffer is full - count as dropped frames
+        _droppedFrames.fetch_add(numFrames);
+    }
+}
+
+- (void)processBufferedAudio {
+    // This runs on the processing queue (not audio thread)
+    
+    if (!_isRecording.load() || !_audioFile) {
+        return;
+    }
+    
+    const NSUInteger maxFramesPerBatch = _bufferSize * 4; // Process in larger batches
+    std::unique_ptr<float[]> processingBuffer = std::make_unique<float[]>(maxFramesPerBatch);
+    
+    const NSTimeInterval startTime = CACurrentMediaTime();
+    
+    while (_ringBuffer->availableFrames() > 0) {
+        const size_t framesRead = _ringBuffer->read(processingBuffer.get(), maxFramesPerBatch);
+        
+        if (framesRead > 0) {
+            [self writeFramesToFile:processingBuffer.get() numFrames:framesRead];
+            _totalFramesRecorded.fetch_add(framesRead);
+        }
+        
+        // Don't spend too much time processing in one go
+        if (CACurrentMediaTime() - startTime > 0.005) { // 5ms max
+            break;
+        }
+    }
+    
+    // Update CPU load metrics
+    const NSTimeInterval processingTime = CACurrentMediaTime() - startTime;
+    const double cpuLoad = (processingTime / 0.010) * 100.0; // 10ms timer interval
+    
+    _cpuLoadSum.fetch_add(cpuLoad);
+    _cpuLoadSamples.fetch_add(1);
+}
+
+- (void)writeFramesToFile:(const float*)audioData numFrames:(size_t)numFrames {
+    if (!_audioFile || numFrames == 0) {
+        return;
+    }
+    
+    // Prepare audio buffer list
+    AudioBufferList bufferList;
+    bufferList.mNumberBuffers = 1;
+    bufferList.mBuffers[0].mNumberChannels = (UInt32)_channels;
+    bufferList.mBuffers[0].mDataByteSize = (UInt32)(numFrames * sizeof(float));
+    bufferList.mBuffers[0].mData = (void*)audioData;
+    
+    // Write to file
+    UInt32 framesToWrite = (UInt32)numFrames;
+    OSStatus status = ExtAudioFileWrite(_audioFile, framesToWrite, &bufferList);
+    
+    if (status != noErr) {
+        NSLog(@"❌ Failed to write audio frames: %d", (int)status);
+    }
+}
+
+#pragma mark - File Management
+
+- (BOOL)createOutputAudioFile {
+    // Create file URL
+    NSURL* fileURL = [NSURL fileURLWithPath:_outputPath];
+    
+    // Setup file format (AIFF for high quality)
+    AudioStreamBasicDescription fileFormat = {0};
+    fileFormat.mSampleRate = _sampleRate;
+    fileFormat.mFormatID = kAudioFormatLinearPCM;
+    fileFormat.mFormatFlags = kLinearPCMFormatFlagIsFloat | kLinearPCMFormatFlagIsPacked;
+    fileFormat.mBytesPerPacket = sizeof(float) * (UInt32)_channels;
+    fileFormat.mFramesPerPacket = 1;
+    fileFormat.mBytesPerFrame = sizeof(float) * (UInt32)_channels;
+    fileFormat.mChannelsPerFrame = (UInt32)_channels;
+    fileFormat.mBitsPerChannel = 32;
+    
+    // Create the audio file
+    OSStatus status = ExtAudioFileCreateWithURL(
+        (__bridge CFURLRef)fileURL,
+        kAudioFileAIFFType,
+        &fileFormat,
+        NULL,
+        kAudioFileFlags_EraseFile,
+        &_audioFile
+    );
+    
+    if (status != noErr) {
+        NSLog(@"❌ Failed to create audio file: %d", (int)status);
+        return NO;
+    }
+    
+    // Set client format (matches our internal format)
+    AudioStreamBasicDescription clientFormat = {0};
+    clientFormat.mSampleRate = _sampleRate;
+    clientFormat.mFormatID = kAudioFormatLinearPCM;
+    clientFormat.mFormatFlags = kLinearPCMFormatFlagIsFloat | kLinearPCMFormatFlagIsPacked;
+    clientFormat.mBytesPerPacket = sizeof(float) * (UInt32)_channels;
+    clientFormat.mFramesPerPacket = 1;
+    clientFormat.mBytesPerFrame = sizeof(float) * (UInt32)_channels;
+    clientFormat.mChannelsPerFrame = (UInt32)_channels;
+    clientFormat.mBitsPerChannel = 32;
+    
+    status = ExtAudioFileSetProperty(_audioFile,
+                                   kExtAudioFileProperty_ClientDataFormat,
+                                   sizeof(clientFormat),
+                                   &clientFormat);
+    
+    if (status != noErr) {
+        NSLog(@"❌ Failed to set client format: %d", (int)status);
+        ExtAudioFileDispose(_audioFile);
+        _audioFile = nil;
+        return NO;
+    }
+    
+    return YES;
+}
+
+#pragma mark - Properties
+
+- (BOOL)isRecording {
+    return _isRecording.load();
+}
+
+- (NSTimeInterval)recordingDuration {
+    if (!_isRecording.load()) {
+        return 0.0;
+    }
+    
+    const NSTimeInterval startTime = _recordingStartTime.load();
+    return startTime > 0 ? (CACurrentMediaTime() - startTime) : 0.0;
+}
+
+- (NSString*)outputFilePath {
+    return _outputPath;
+}
+
+- (NSUInteger)droppedFrames {
+    return _droppedFrames.load();
+}
+
+- (double)averageCPULoad {
+    const NSUInteger samples = _cpuLoadSamples.load();
+    if (samples == 0) return 0.0;
+    
+    return _cpuLoadSum.load() / (double)samples;
+}
+
+#pragma mark - Audio Buffer Writing
+
+- (BOOL)writeAudioBuffer:(AVAudioPCMBuffer*)buffer {
+    if (!buffer || buffer.frameLength == 0) {
+        return NO;
+    }
+    
+    // Get audio data from the buffer
+    const float* audioData = buffer.floatChannelData[0]; // Assume mono or use first channel
+    NSUInteger numFrames = buffer.frameLength;
+    NSTimeInterval timestamp = CACurrentMediaTime();
+    
+    // Process the audio buffer
+    [self processAudioBuffer:audioData numFrames:numFrames timestamp:timestamp];
+    
+    return YES;
+}
+
+#pragma mark - Configuration
+
+- (void)setGain:(float)gain {
+    _gain.store(std::max(0.0f, std::min(4.0f, gain))); // Clamp to reasonable range
+}
+
+- (void)setQuality:(NSUInteger)quality {
+    _quality.store(std::min(quality, (NSUInteger)2)); // 0-2 range
+}
+
+@end

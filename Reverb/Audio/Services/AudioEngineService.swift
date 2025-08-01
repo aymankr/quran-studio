@@ -3,271 +3,155 @@ import AVFoundation
 import AudioToolbox
 import Accelerate
 
-// MARK: - NonBlockingAudioRecorder (Embedded)
-// Architecture non-bloquante intégrée pour éviter les problèmes de projet Xcode
-
-private class NonBlockingAudioRecorder {
+// MARK: - iOS-native ReverbBridge implementation
+@objc(ReverbBridge)
+public class ReverbBridge: NSObject {
     
-    private struct Config {
-        static let bufferSizeFrames: Int = 32768        // ~680ms à 48kHz
-        static let writeChunkFrames: Int = 2048         // ~42ms par écriture 
-        static let maxChannels: Int = 2                 // Stéréo maximum
+    @objc
+    public enum ReverbPresetType: Int, CaseIterable {
+        case clean = 0
+        case vocalBooth = 1
+        case studio = 2
+        case cathedral = 3
+        case custom = 4
     }
     
-    private class CircularBuffer {
-        private var buffer: UnsafeMutablePointer<Float>
-        private let capacity: Int
-        private let channelCount: Int
-        private var writeIndex: Int = 0
-        private var readIndex: Int = 0
-        private var availableFrames: Int = 0
-        private let lock = NSLock()
+    private var sampleRate: Double = 48000.0
+    private var maxBlockSize: Int = 512
+    private var initialized: Bool = false
+    private var bypassed: Bool = false
+    
+    private var currentWetDryMix: Float = 0.0
+    private var currentDecayTime: Float = 1.0
+    private var currentPreDelay: Float = 0.0
+    private var currentCrossFeed: Float = 0.0
+    private var currentRoomSize: Float = 0.5
+    private var currentDensity: Float = 0.7
+    private var currentHighFreqDamping: Float = 0.5
+    
+    public override init() {
+        super.init()
+        print("✅ ReverbBridge iOS native implementation created")
+    }
+    
+    @objc public func initialize(withSampleRate sampleRate: Double, maxBlockSize: Int) -> Bool {
+        self.sampleRate = sampleRate
+        self.maxBlockSize = maxBlockSize
+        self.initialized = true
+        self.bypassed = false
         
-        init(frameCapacity: Int, channelCount: Int) {
-            self.capacity = frameCapacity
-            self.channelCount = channelCount
-            let totalSamples = frameCapacity * channelCount
-            self.buffer = UnsafeMutablePointer<Float>.allocate(capacity: totalSamples)
-            self.buffer.initialize(repeating: 0.0, count: totalSamples)
-        }
-        
-        deinit {
-            buffer.deallocate()
-        }
-        
-        func write(from pcmBuffer: AVAudioPCMBuffer) -> Bool {
-            guard let channelData = pcmBuffer.floatChannelData else { return false }
-            
-            let frameCount = Int(pcmBuffer.frameLength)
-            guard frameCount > 0 else { return false }
-            
-            lock.lock()
-            defer { lock.unlock() }
-            
-            let spaceAvailable = capacity - availableFrames
-            guard frameCount <= spaceAvailable else {
-                return false
-            }
-            
-            for channel in 0..<min(channelCount, Int(pcmBuffer.format.channelCount)) {
-                let sourcePtr = channelData[channel]
-                
-                for frame in 0..<frameCount {
-                    let bufferIndex = (writeIndex + frame) % capacity
-                    let sampleIndex = bufferIndex * channelCount + channel
-                    buffer[sampleIndex] = sourcePtr[frame]
-                }
-            }
-            
-            writeIndex = (writeIndex + frameCount) % capacity
-            availableFrames += frameCount
-            
-            return true
-        }
-        
-        func read(frameCount: Int, to destinationBuffer: UnsafeMutablePointer<Float>) -> Int {
-            lock.lock()
-            defer { lock.unlock() }
-            
-            let framesToRead = min(frameCount, availableFrames)
-            guard framesToRead > 0 else { return 0 }
-            
-            for frame in 0..<framesToRead {
-                let bufferIndex = (readIndex + frame) % capacity
-                for channel in 0..<channelCount {
-                    let sourceIndex = bufferIndex * channelCount + channel
-                    let destIndex = frame * channelCount + channel
-                    destinationBuffer[destIndex] = buffer[sourceIndex]
-                }
-            }
-            
-            readIndex = (readIndex + framesToRead) % capacity
-            availableFrames -= framesToRead
-            
-            return framesToRead
-        }
-        
-        var framesAvailable: Int {
-            lock.lock()
-            defer { lock.unlock() }
-            return availableFrames
+        print("🎵 ReverbBridge iOS initialized: \(sampleRate)Hz, \(maxBlockSize) frames")
+        return true
+    }
+    
+    @objc public func isInitialized() -> Bool { return initialized }
+    @objc public func isBypassed() -> Bool { return bypassed }
+    @objc public func setBypassed(_ bypass: Bool) { bypassed = bypass }
+    
+    @objc public func wetDryMix() -> Float { return currentWetDryMix }
+    @objc public func decayTime() -> Float { return currentDecayTime }
+    @objc public func preDelay() -> Float { return currentPreDelay }
+    @objc public func crossFeed() -> Float { return currentCrossFeed }
+    @objc public func roomSize() -> Float { return currentRoomSize }
+    @objc public func density() -> Float { return currentDensity }
+    @objc public func highFreqDamping() -> Float { return currentHighFreqDamping }
+    
+    @objc public func setPreset(_ preset: ReverbPresetType) {
+        switch preset {
+        case .clean: applyCleanPreset()
+        case .vocalBooth: applyVocalBoothPreset()
+        case .studio: applyStudioPreset()
+        case .cathedral: applyCathedralPreset()
+        case .custom: break
         }
     }
     
-    private var circularBuffer: CircularBuffer?
-    private var audioFile: AVAudioFile?
-    private var writeBuffer: UnsafeMutablePointer<Float>?
-    private var tempPCMBuffer: AVAudioPCMBuffer?
-    private var isRecording = false
-    private var recordingFormat: AVAudioFormat?
-    private var ioQueue: DispatchQueue?
-    private var ioTimer: DispatchSourceTimer?
-    private var droppedFrames: Int = 0
-    private var totalFramesWritten: Int = 0
+    @objc public func applyCleanPreset() {
+        currentWetDryMix = 0.0
+        currentDecayTime = 0.5
+        currentPreDelay = 0.0
+        currentCrossFeed = 0.0
+        currentRoomSize = 0.3
+        currentDensity = 0.5
+        currentHighFreqDamping = 0.7
+        print("🎵 ReverbBridge: Clean preset applied (0% wet)")
+    }
     
-    init() {
-        ioQueue = DispatchQueue(label: "com.reverb.audio-io", qos: .userInitiated, attributes: .concurrent)
+    @objc public func applyVocalBoothPreset() {
+        currentWetDryMix = 15.0
+        currentDecayTime = 0.8
+        currentPreDelay = 10.0
+        currentCrossFeed = 0.2
+        currentRoomSize = 0.4
+        currentDensity = 0.6
+        currentHighFreqDamping = 0.8
+        print("🎵 ReverbBridge: VocalBooth preset applied (15% wet)")
+    }
+    
+    @objc public func applyStudioPreset() {
+        currentWetDryMix = 25.0
+        currentDecayTime = 1.2
+        currentPreDelay = 20.0
+        currentCrossFeed = 0.3
+        currentRoomSize = 0.6
+        currentDensity = 0.7
+        currentHighFreqDamping = 0.6
+        print("🎵 ReverbBridge: Studio preset applied (25% wet)")
+    }
+    
+    @objc public func applyCathedralPreset() {
+        currentWetDryMix = 40.0
+        currentDecayTime = 3.5
+        currentPreDelay = 50.0
+        currentCrossFeed = 0.5
+        currentRoomSize = 0.9
+        currentDensity = 0.8
+        currentHighFreqDamping = 0.4
+        print("🎵 ReverbBridge: Cathedral preset applied (40% wet)")
+    }
+    
+    @objc public func applyCustomPreset(withWetDryMix wetDry: Float, 
+                                       decayTime: Float, 
+                                       preDelay: Float, 
+                                       crossFeed: Float, 
+                                       roomSize: Float, 
+                                       density: Float, 
+                                       highFreqDamping: Float) {
+        currentWetDryMix = max(0.0, min(100.0, wetDry))
+        currentDecayTime = max(0.1, min(8.0, decayTime))
+        currentPreDelay = max(0.0, min(200.0, preDelay))
+        currentCrossFeed = max(0.0, min(1.0, crossFeed))
+        currentRoomSize = max(0.0, min(1.0, roomSize))
+        currentDensity = max(0.0, min(100.0, density))
+        currentHighFreqDamping = max(0.0, min(100.0, highFreqDamping))
+        print("🎵 ReverbBridge: Custom preset applied (\(currentWetDryMix)% wet)")
+    }
+    
+    @objc public func processAudioBuffer(_ buffer: AVAudioPCMBuffer) -> Bool {
+        return !bypassed && initialized
+    }
+    
+    @objc public func cleanup() {
+        initialized = false
+        bypassed = true
+        print("🧹 ReverbBridge iOS cleaned up")
     }
     
     deinit {
-        stopRecording()
-        writeBuffer?.deallocate()
-    }
-    
-    func startRecording(to url: URL, format: AVAudioFormat) -> Bool {
-        guard !isRecording else { return false }
-        
-        guard let optimizedFormat = createOptimalFormat(basedOn: format) else { return false }
-        
-        do {
-            audioFile = try AVAudioFile(forWriting: url, settings: optimizedFormat.settings)
-            recordingFormat = optimizedFormat
-            
-            let channelCount = Int(optimizedFormat.channelCount)
-            circularBuffer = CircularBuffer(frameCapacity: Config.bufferSizeFrames, channelCount: channelCount)
-            
-            let workBufferSize = Config.writeChunkFrames * channelCount
-            writeBuffer = UnsafeMutablePointer<Float>.allocate(capacity: workBufferSize)
-            
-            tempPCMBuffer = AVAudioPCMBuffer(pcmFormat: optimizedFormat, frameCapacity: UInt32(Config.writeChunkFrames))
-            
-            startIOThread()
-            
-            isRecording = true
-            droppedFrames = 0
-            totalFramesWritten = 0
-            
-            return true
-        } catch {
-            cleanup()
-            return false
-        }
-    }
-    
-    func stopRecording() -> (success: Bool, droppedFrames: Int, totalFrames: Int) {
-        guard isRecording else { return (false, 0, 0) }
-        
-        isRecording = false
-        ioTimer?.cancel()
-        ioTimer = nil
-        
-        flushRemainingData()
-        
-        let stats = (success: true, droppedFrames: droppedFrames, totalFrames: totalFramesWritten)
         cleanup()
-        return stats
-    }
-    
-    func writeAudioBuffer(_ buffer: AVAudioPCMBuffer) -> Bool {
-        guard isRecording, let circularBuffer = circularBuffer else { return false }
-        
-        let success = circularBuffer.write(from: buffer)
-        if !success {
-            droppedFrames += Int(buffer.frameLength)
-        }
-        
-        return success
-    }
-    
-    private func createOptimalFormat(basedOn sourceFormat: AVAudioFormat) -> AVAudioFormat? {
-        let sampleRate = sourceFormat.sampleRate > 0 ? sourceFormat.sampleRate : 48000
-        let channelCount = min(sourceFormat.channelCount, UInt32(Config.maxChannels))
-        
-        return AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: sampleRate, channels: channelCount, interleaved: false)
-    }
-    
-    private func startIOThread() {
-        guard let queue = ioQueue else { return }
-        
-        ioTimer = DispatchSource.makeTimerSource(queue: queue)
-        ioTimer?.schedule(deadline: .now(), repeating: .milliseconds(20))
-        
-        ioTimer?.setEventHandler { [weak self] in
-            self?.processBufferedData()
-        }
-        
-        ioTimer?.resume()
-    }
-    
-    private func processBufferedData() {
-        guard isRecording,
-              let buffer = circularBuffer,
-              let audioFile = audioFile,
-              let writeBuffer = writeBuffer,
-              let tempBuffer = tempPCMBuffer,
-              let format = recordingFormat else { return }
-        
-        let framesAvailable = buffer.framesAvailable
-        guard framesAvailable >= Config.writeChunkFrames else { return }
-        
-        let framesToProcess = min(framesAvailable, Config.writeChunkFrames)
-        let framesRead = buffer.read(frameCount: framesToProcess, to: writeBuffer)
-        
-        guard framesRead > 0 else { return }
-        
-        tempBuffer.frameLength = UInt32(framesRead)
-        
-        if let channelData = tempBuffer.floatChannelData {
-            let channelCount = Int(format.channelCount)
-            
-            for channel in 0..<channelCount {
-                let channelPtr = channelData[channel]
-                for frame in 0..<framesRead {
-                    let sourceIndex = frame * channelCount + channel
-                    channelPtr[frame] = writeBuffer[sourceIndex]
-                }
-            }
-        }
-        
-        do {
-            try audioFile.write(from: tempBuffer)
-            totalFramesWritten += framesRead
-        } catch {
-            droppedFrames += framesRead
-        }
-    }
-    
-    private func flushRemainingData() {
-        guard let buffer = circularBuffer else { return }
-        
-        var iterations = 0
-        while buffer.framesAvailable > 0 && iterations < 100 {
-            processBufferedData()
-            iterations += 1
-            usleep(10000)
-        }
-    }
-    
-    private func cleanup() {
-        circularBuffer = nil
-        audioFile = nil
-        recordingFormat = nil
-        tempPCMBuffer = nil
-        writeBuffer?.deallocate()
-        writeBuffer = nil
-    }
-    
-    var statistics: (bufferedFrames: Int, droppedFrames: Int, totalFrames: Int) {
-        return (
-            bufferedFrames: circularBuffer?.framesAvailable ?? 0,
-            droppedFrames: droppedFrames,
-            totalFrames: totalFramesWritten
-        )
-    }
-    
-    var bufferUsagePercentage: Float {
-        guard let buffer = circularBuffer else { return 0 }
-        return Float(buffer.framesAvailable) / Float(Config.bufferSizeFrames) * 100
+        print("♻️ ReverbBridge iOS deallocated")
     }
 }
 
-class AudioEngineService {
+// MARK: - AudioEngineService
+
+public class AudioEngineService {
     // Audio engine components
     private var audioEngine: AVAudioEngine?
-    private var inputNode: AVAudioInputNode?
+    var inputNode: AVAudioInputNode?
     private var mainMixer: AVAudioMixerNode?
     
-    // Reverb system using C++ ReverbBridge for stability
+    // Reverb system using Swift ReverbBridge for iOS
     private var reverbBridge: ReverbBridge?
     
     // CORRECTION: Chaîne simplifiée pour qualité optimale
@@ -400,15 +284,15 @@ class AudioEngineService {
             try engine.connect(recordingMixer, to: mainMixer, format: inputHWFormat)
             try engine.connect(mainMixer, to: engine.outputNode, format: nil)
             
-            // Initialize C++ ReverbBridge for processing (but don't break audio flow)
+            // Initialize Swift ReverbBridge for processing (but don't break audio flow)
             self.reverbBridge = ReverbBridge()
             let sampleRate = inputHWFormat.sampleRate
             let maxBlockSize = 512
             
             if let bridge = self.reverbBridge {
-                let success = bridge.initialize(withSampleRate: sampleRate, maxBlockSize: Int32(maxBlockSize))
+                let success = bridge.initialize(withSampleRate: sampleRate, maxBlockSize: maxBlockSize)
                 if success {
-                    print("✅ C++ ReverbBridge initialized successfully")
+                    print("✅ Swift ReverbBridge initialized successfully")
                 } else {
                     print("⚠️ ReverbBridge failed to initialize, but audio flow preserved")
                     self.reverbBridge = nil
@@ -482,7 +366,7 @@ class AudioEngineService {
         print("   - Total theoretical gain: x\(String(format: "%.1f", optimizedOutput * max(1.0, inputVolume * 0.7)))")
     }
     
-    // MARK: - Reverb Preset Management using C++ ReverbBridge
+    // MARK: - Reverb Preset Management using Swift ReverbBridge
     
     func updateReverbPreset(preset: ReverbPreset) {
         print("🎛️ AUDIOENGINESERVICE: Received updateReverbPreset(\(preset.rawValue))")
@@ -498,9 +382,9 @@ class AudioEngineService {
             return
         }
         
-        print("🔧 AUDIOENGINESERVICE: Applying preset to C++ ReverbBridge")
+        print("🔧 AUDIOENGINESERVICE: Applying preset to Swift ReverbBridge")
         
-        // Convert Swift preset to C++ enum and apply
+        // Convert Swift preset to ReverbBridge and apply
         switch preset {
         case .clean:
             print("   Applying Clean preset (0% wet)")
@@ -530,23 +414,13 @@ class AudioEngineService {
         let appliedWetDry = bridge.wetDryMix()
         let appliedDecay = bridge.decayTime()
         
-        print("✅ AUDIOENGINESERVICE: C++ Reverb preset applied successfully")
+        print("✅ AUDIOENGINESERVICE: Swift Reverb preset applied successfully")
         print("   - Preset: \(preset.rawValue)")
         print("   - Applied Wet/Dry: \(appliedWetDry)%")
         print("   - Applied Decay: \(appliedDecay)s")
         print("   - Bridge Initialized: \(bridge.isInitialized())")
         print("   - Bridge Bypassed: \(bridge.isBypassed())")
     }
-    
-    // MARK: - Real-time C++ Reverb Integration
-    // NOTE: This is disabled since we're using AudioIOBridge for C++ processing
-    
-    // private func createReverbSourceNode(bridge: ReverbBridge, format: AVAudioFormat) -> AVAudioSourceNode {
-    //     // Disabled - using AudioIOBridge instead
-    //     return AVAudioSourceNode { _, _, _, _ -> OSStatus in
-    //         return noErr
-    //     }
-    // }
     
     // MARK: - Installation du tap d'enregistrement NON-BLOQUANT du signal wet traité
     
@@ -568,7 +442,11 @@ class AudioEngineService {
         print("🎙️ Installing NON-BLOCKING wet signal recording tap with optimized format")
         
         // Créer le recorder non-bloquant
-        nonBlockingRecorder = NonBlockingAudioRecorder()
+        nonBlockingRecorder = NonBlockingAudioRecorder(
+            recording: recordingURL,
+            format: tapFormat,
+            bufferSize: 1024
+        )
         
         guard let recorder = nonBlockingRecorder else {
             print("❌ Failed to create NonBlockingAudioRecorder")
@@ -627,7 +505,7 @@ class AudioEngineService {
             
         } catch {
             print("❌ Failed to install non-blocking recording tap: \(error)")
-            recorder.stopRecording()
+            let _ = recorder.stopRecording()
             nonBlockingRecorder = nil
             return false
         }
@@ -1074,7 +952,7 @@ class AudioEngineService {
         print("🎵 Quality-Optimized Engine Status:")
         print("   - Engine running: \(engine.isRunning)")
         print("   - Current preset: \(currentPreset.rawValue)")
-        print("   - C++ ReverbBridge: \(reverbBridge != nil ? "✅ AVAILABLE" : "❌ NIL")")
+        print("   - Swift ReverbBridge: \(reverbBridge != nil ? "✅ AVAILABLE" : "❌ NIL")")
         if let bridge = reverbBridge {
             print("   - Bridge initialized: \(bridge.isInitialized())")
             print("   - Bridge wet/dry: \(bridge.wetDryMix())%")

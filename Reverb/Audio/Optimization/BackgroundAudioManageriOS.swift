@@ -33,7 +33,7 @@ class BackgroundAudioManager: ObservableObject {
     
     private var audioSession: AVAudioSession
     private var backgroundAudioEngine: AVAudioEngine?
-    // private weak var memoryBatteryManager: MemoryBatteryManager? // Optional dependency commented out
+    private weak var memoryBatteryManager: MemoryBatteryManager?
     
     private var batteryMonitor: Timer?
     private var thermalStateObserver: NSObjectProtocol?

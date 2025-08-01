@@ -93,7 +93,7 @@ class CrossPlatformAudioSession: ObservableObject {
             
             // Configure optimal sample rate (48kHz professional standard)
             try session.setPreferredSampleRate(targetSampleRate)
-            logger.info("🎼 Preferred sample rate set to \(targetSampleRate) Hz")
+            logger.info("🎼 Preferred sample rate set to \(self.targetSampleRate) Hz")
             
             // Configure ultra-low latency buffer duration
             // Target: 64 frames at 48kHz = ~1.33ms latency (AD 480 RE level)
@@ -120,7 +120,7 @@ class CrossPlatformAudioSession: ObservableObject {
             let actualLatencyMs = actualBufferDuration * 1000
             
             logger.info("📊 ACTUAL iOS AUDIO CONFIGURATION:")
-            logger.info("   - Sample Rate: \(actualSampleRate) Hz (target: \(targetSampleRate) Hz)")
+            logger.info("   - Sample Rate: \(actualSampleRate) Hz (target: \(self.targetSampleRate) Hz)")
             logger.info("   - Buffer Duration: \(String(format: "%.2f", actualBufferDuration * 1000))ms")
             logger.info("   - Buffer Size: \(actualBufferFrames) frames (target: \(targetBufferFrames) frames)")
             logger.info("   - Input Channels: \(session.inputNumberOfChannels)")
@@ -294,7 +294,7 @@ class CrossPlatformAudioSession: ObservableObject {
             return
         }
         
-        logger.info("🔄 Audio route changed: \(reason)")
+        logger.info("🔄 Audio route changed: \(String(describing: reason))")
         
         switch reason {
         case .newDeviceAvailable:
@@ -462,15 +462,15 @@ class CrossPlatformAudioSession: ObservableObject {
     // MARK: - Diagnostics
     func printDiagnostics() {
         logger.info("🔍 === CROSS-PLATFORM AUDIO SESSION DIAGNOSTICS ===")
-        logger.info("Platform: \(getCurrentPlatform())")
-        logger.info("Configured: \(isConfigured)")
-        logger.info("Sample Rate: \(currentSampleRate) Hz")
-        logger.info("Buffer Size: \(currentBufferSize) frames")
-        logger.info("Latency: \(String(format: "%.2f", actualLatency))ms")
-        logger.info("Route: \(audioRouteDescription)")
-        logger.info("Bluetooth: \(isBluetoothConnected)")
-        logger.info("Low Latency Capable: \(isLowLatencyCapable())")
-        logger.info("Optimal Buffer Size: \(getOptimalBufferSize()) frames")
+        logger.info("Platform: \(self.getCurrentPlatform())")
+        logger.info("Configured: \(self.isConfigured)")
+        logger.info("Sample Rate: \(self.currentSampleRate) Hz")
+        logger.info("Buffer Size: \(self.currentBufferSize) frames")
+        logger.info("Latency: \(String(format: "%.2f", self.actualLatency))ms")
+        logger.info("Route: \(self.audioRouteDescription)")
+        logger.info("Bluetooth: \(self.isBluetoothConnected)")
+        logger.info("Low Latency Capable: \(self.isLowLatencyCapable())")
+        logger.info("Optimal Buffer Size: \(self.getOptimalBufferSize()) frames")
         logger.info("=== END DIAGNOSTICS ===")
     }
     

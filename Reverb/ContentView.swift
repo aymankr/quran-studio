@@ -905,18 +905,15 @@ struct ContentView: View {
     
     private func handleRecordingToggle() {
         if audioManager.isRecording {
-            audioManager.stopRecording { success, filename, duration in
-                if success {
-                    recordingHistory.addSession(preset: selectedReverbPreset.rawValue, duration: duration)
-                    loadRecordings()
-                }
+            audioManager.stopRecording()
+            // Update UI with latest recording if available
+            if let lastRecording = audioManager.recordingHistory.last {
+                recordingHistory.addSession(preset: lastRecording.preset.rawValue, duration: lastRecording.duration)
+                loadRecordings()
             }
         } else {
-            audioManager.startRecording { success in
-                if !success {
-                    print("❌ Échec de l'enregistrement")
-                }
-            }
+            audioManager.startRecording()
+            print("🎙️ Recording started")
         }
     }
     

@@ -1,5 +1,8 @@
 import SwiftUI
 import UniformTypeIdentifiers
+#if canImport(UIKit)
+import UIKit
+#endif
 
 struct BatchProcessingView: View {
     @StateObject private var batchProcessor = BatchOfflineProcessor()

@@ -2,89 +2,54 @@ import Foundation
 import AVFoundation
 import Combine
 
-/// Updated AudioManager that uses the C++ backend via AudioIOBridge
-/// This replaces your existing AudioManager.swift with C++ integration
+/// iOS-compatible SwiftAudioManager that delegates to AudioManagerCPP
+/// Provides compatibility while using the iOS-optimized implementation
+@MainActor
 class SwiftAudioManager: ObservableObject {
     static let shared = SwiftAudioManager()
     
-    // C++ Bridge components
-    private var reverbBridge: ReverbBridge?
-    private var audioIOBridge: AudioIOBridge?
+    // Delegate to the main audio manager
+    private let audioManager = AudioManagerCPP.shared
     
-    // Published properties for SwiftUI
+    // Published properties that mirror AudioManagerCPP
     @Published var selectedReverbPreset: ReverbPreset = .vocalBooth
     @Published var currentAudioLevel: Float = 0.0
     @Published var isRecording: Bool = false
     @Published var lastRecordingFilename: String?
     @Published var isMonitoring: Bool = false
-    
-    // Custom reverb settings (compatible with your existing UI)
+    @Published var inputVolume: Float = 1.0
+    @Published var outputVolume: Float = 1.0
+    @Published var isMuted: Bool = false
     @Published var customReverbSettings = CustomReverbSettings.default
     
-    // Volume control
-    private var inputVolume: Float = 1.0
-    private var outputVolume: Float = 1.4
-    private var isMuted: Bool = false
-    
     private init() {
-        setupCppAudioEngine()
+        print("🎵 SwiftAudioManager iOS compatibility layer initialized")
+        
+        // Sync state with main audio manager
+        syncWithAudioManager()
     }
     
-    // MARK: - C++ Audio Engine Setup
-    
-    private func setupCppAudioEngine() {
-        print("🎵 Initializing C++ audio engine")
-        
-        // Create C++ bridges
-        reverbBridge = ReverbBridge()
-        guard let reverbBridge = reverbBridge else {
-            print("❌ Failed to create ReverbBridge")
-            return
-        }
-        
-        audioIOBridge = AudioIOBridge(reverbBridge: reverbBridge)
-        guard let audioIOBridge = audioIOBridge else {
-            print("❌ Failed to create AudioIOBridge")
-            return
-        }
-        
-        // Setup audio engine
-        if audioIOBridge.setupAudioEngine() {
-            print("✅ C++ audio engine initialized successfully")
-            
-            // Set up audio level monitoring
-            audioIOBridge.setAudioLevelCallback { [weak self] level in
-                DispatchQueue.main.async {
-                    self?.currentAudioLevel = level
-                }
-            }
-            
-            // Apply initial settings
-            updateReverbPreset(preset: selectedReverbPreset)
-        } else {
-            print("❌ Failed to setup C++ audio engine")
-        }
+    private func syncWithAudioManager() {
+        selectedReverbPreset = audioManager.selectedReverbPreset
+        currentAudioLevel = audioManager.audioLevel
+        isRecording = audioManager.isRecording
+        isMonitoring = audioManager.isMonitoring
+        inputVolume = audioManager.inputVolume
+        outputVolume = audioManager.outputVolume
+        isMuted = audioManager.isMuted
+        customReverbSettings = audioManager.customReverbSettings
     }
     
-    // MARK: - Audio Control (compatible with existing UI)
+    // MARK: - Delegation methods
     
     func startMonitoring() {
-        guard let audioIOBridge = audioIOBridge else { return }
-        
-        audioIOBridge.setMonitoring(true)
-        isMonitoring = audioIOBridge.isMonitoring()
-        
-        print("🎵 Monitoring started with C++ backend")
+        audioManager.startMonitoring()
+        syncWithAudioManager()
     }
     
     func stopMonitoring() {
-        guard let audioIOBridge = audioIOBridge else { return }
-        
-        audioIOBridge.setMonitoring(false)
-        isMonitoring = false
-        currentAudioLevel = 0.0
-        
-        print("🔇 Monitoring stopped")
+        audioManager.stopMonitoring()
+        syncWithAudioManager()
     }
     
     func setMonitoring(enabled: Bool) {
@@ -95,168 +60,107 @@ class SwiftAudioManager: ObservableObject {
         }
     }
     
-    // MARK: - Reverb Preset Management
-    
     func updateReverbPreset(preset: ReverbPreset) {
-        guard let audioIOBridge = audioIOBridge else { return }
-        
-        selectedReverbPreset = preset
-        
-        let cppPreset: ReverbPresetType
-        switch preset {
-        case .clean:
-            cppPreset = .clean
-        case .vocalBooth:
-            cppPreset = .vocalBooth
-        case .studio:
-            cppPreset = .studio
-        case .cathedral:
-            cppPreset = .cathedral
-        case .custom:
-            cppPreset = .custom
-            // Apply custom settings
-            applyCustomReverbSettings()
-        }
-        
-        audioIOBridge.setReverbPreset(cppPreset)
-        
-        print("🎛️ Reverb preset changed to: \(preset.rawValue)")
+        audioManager.updateReverbPreset(preset)
+        syncWithAudioManager()
     }
     
-    private func applyCustomReverbSettings() {
-        guard let audioIOBridge = audioIOBridge else { return }
-        
-        audioIOBridge.setWetDryMix(customReverbSettings.wetDryMix)
-        audioIOBridge.setDecayTime(customReverbSettings.decayTime)
-        audioIOBridge.setPreDelay(customReverbSettings.preDelay)
-        audioIOBridge.setCrossFeed(customReverbSettings.crossFeed)
-        audioIOBridge.setRoomSize(customReverbSettings.size)
-        audioIOBridge.setDensity(customReverbSettings.density)
-        audioIOBridge.setHighFreqDamping(customReverbSettings.highFrequencyDamping)
+    func setInputVolume(_ volume: Float) {
+        audioManager.setInputVolume(volume)
+        syncWithAudioManager()
     }
     
-    // MARK: - Custom Reverb Parameters
+    func getInputVolume() -> Float {
+        return audioManager.getInputVolume()
+    }
+    
+    func setOutputVolume(_ volume: Float, isMuted: Bool) {
+        audioManager.setOutputVolume(volume, isMuted: isMuted)
+        syncWithAudioManager()
+    }
+    
+    func printDiagnostics() {
+        print("🔍 SwiftAudioManager Compatibility Layer:")
+        audioManager.performDiagnostics()
+    }
+    
+    // MARK: - Placeholder methods for compatibility
     
     func updateCustomReverbSettings(_ settings: CustomReverbSettings) {
-        customReverbSettings = settings
-        ReverbPreset.updateCustomSettings(settings)
-        
-        if selectedReverbPreset == .custom {
-            applyCustomReverbSettings()
-        }
+        audioManager.updateCustomReverbSettings(settings)
+        syncWithAudioManager()
     }
     
-    // Individual parameter updates for real-time control
     func setWetDryMix(_ value: Float) {
         customReverbSettings.wetDryMix = value
-        audioIOBridge?.setWetDryMix(value)
+        updateCustomReverbSettings(customReverbSettings)
     }
     
     func setDecayTime(_ value: Float) {
         customReverbSettings.decayTime = value
-        audioIOBridge?.setDecayTime(value)
+        updateCustomReverbSettings(customReverbSettings)
     }
     
     func setPreDelay(_ value: Float) {
         customReverbSettings.preDelay = value
-        audioIOBridge?.setPreDelay(value)
+        updateCustomReverbSettings(customReverbSettings)
     }
     
     func setCrossFeed(_ value: Float) {
         customReverbSettings.crossFeed = value
-        audioIOBridge?.setCrossFeed(value)
+        updateCustomReverbSettings(customReverbSettings)
     }
     
     func setRoomSize(_ value: Float) {
         customReverbSettings.size = value
-        audioIOBridge?.setRoomSize(value)
+        updateCustomReverbSettings(customReverbSettings)
     }
     
     func setDensity(_ value: Float) {
         customReverbSettings.density = value
-        audioIOBridge?.setDensity(value)
+        updateCustomReverbSettings(customReverbSettings)
     }
     
     func setHighFreqDamping(_ value: Float) {
         customReverbSettings.highFrequencyDamping = value
-        audioIOBridge?.setHighFreqDamping(value)
+        updateCustomReverbSettings(customReverbSettings)
     }
     
-    // MARK: - Volume Control
-    
-    func setInputVolume(_ volume: Float) {
-        inputVolume = volume
-        audioIOBridge?.setInputVolume(volume)
-    }
-    
-    func getInputVolume() -> Float {
-        return audioIOBridge?.inputVolume() ?? inputVolume
-    }
-    
-    func setOutputVolume(_ volume: Float, isMuted: Bool) {
-        outputVolume = volume
-        self.isMuted = isMuted
-        audioIOBridge?.setOutputVolume(volume, isMuted: isMuted)
-    }
-    
-    // MARK: - Recording Support (for compatibility)
+    // MARK: - Recording Support (delegates to AudioManagerCPP)
     
     func getRecordingMixer() -> AVAudioMixerNode? {
-        return audioIOBridge?.getRecordingMixer()
+        return audioManager.audioEngineService?.getRecordingMixer()
     }
     
     func getRecordingFormat() -> AVAudioFormat? {
-        return audioIOBridge?.getRecordingFormat()
+        return audioManager.audioEngineService?.getOptimalRecordingFormat()
     }
     
-    // MARK: - Performance Monitoring
+    // MARK: - Performance Monitoring (placeholders)
     
     func getCpuUsage() -> Double {
-        return audioIOBridge?.cpuUsage() ?? 0.0
+        return Double(audioManager.cpuUsage)
     }
     
     func isEngineRunning() -> Bool {
-        return audioIOBridge?.isEngineRunning() ?? false
+        return audioManager.isEngineRunning
     }
     
     func isInitialized() -> Bool {
-        return audioIOBridge?.isInitialized() ?? false
-    }
-    
-    // MARK: - Diagnostics
-    
-    func printDiagnostics() {
-        print("🔍 === SWIFT AUDIO MANAGER DIAGNOSTICS ===")
-        print("Selected preset: \(selectedReverbPreset.rawValue)")
-        print("Is monitoring: \(isMonitoring)")
-        print("Audio level: \(currentAudioLevel)")
-        print("CPU usage: \(getCpuUsage())%")
-        print("Engine running: \(isEngineRunning())")
-        print("Initialized: \(isInitialized())")
-        
-        // Print C++ diagnostics
-        audioIOBridge?.printDiagnostics()
-        
-        print("=== END SWIFT DIAGNOSTICS ===")
+        return audioManager.audioEngineService != nil
     }
     
     // MARK: - Preset Description (for UI compatibility)
     
     var currentPresetDescription: String {
-        return selectedReverbPreset.description
-    }
-    
-    // MARK: - Cleanup
-    
-    deinit {
-        stopMonitoring()
+        return audioManager.currentPresetDescription
     }
 }
 
-// MARK: - Bridge to Objective-C types
+// MARK: - Extensions for ReverbPreset compatibility
 
 extension ReverbPreset {
-    func toCppPresetType() -> ReverbPresetType {
+    func toCppPresetType() -> ReverbBridge.ReverbPresetType {
         switch self {
         case .clean: return .clean
         case .vocalBooth: return .vocalBooth

@@ -108,7 +108,7 @@ class BatchOfflineProcessor: ObservableObject {
         processingQueue.append(contentsOf: newItems)
         totalFiles = processingQueue.count
         
-        logger.info("📥 Added \(newItems.count) files to batch queue (total: \(totalFiles))")
+        logger.info("📥 Added \(newItems.count) files to batch queue (total: \(self.totalFiles))")
     }
     
     func removeFromQueue(_ item: BatchItem) {
@@ -140,10 +140,10 @@ class BatchOfflineProcessor: ObservableObject {
     // MARK: - Batch Processing
     func startBatchProcessing() async throws {
         guard !isProcessing && !processingQueue.isEmpty else {
-            throw BatchError.invalidState
+            throw ProcessingError.invalidState
         }
         
-        logger.info("🚀 Starting batch processing: \(processingQueue.count) files")
+        logger.info("🚀 Starting batch processing: \(self.processingQueue.count) files")
         
         // Initialize state
         DispatchQueue.main.async {
@@ -225,7 +225,7 @@ class BatchOfflineProcessor: ObservableObject {
             self.totalProcessingTime = Date().timeIntervalSince(self.batchStartTime ?? Date())
         }
         
-        logger.info("🏁 Batch processing completed: \(completedItems.count) succeeded, \(failedItems.count) failed")
+        logger.info("🏁 Batch processing completed: \(self.completedItems.count) succeeded, \(self.failedItems.count) failed")
     }
     
     func cancelBatchProcessing() {
@@ -395,7 +395,7 @@ class BatchOfflineProcessor: ObservableObject {
     }
     
     // MARK: - Error Types
-    enum BatchError: LocalizedError {
+    enum ProcessingError: LocalizedError {
         case invalidState
         case emptyQueue
         case processingCancelled
