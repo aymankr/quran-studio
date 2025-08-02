@@ -2,43 +2,7 @@ import SwiftUI
 import Combine
 import UIKit
 
-/// iOS-native OptimizedAudioBridge implementation
-@objc(OptimizedAudioBridge)
-public class OptimizedAudioBridge: NSObject {
-    private let sampleRate: Double
-    private let bufferSize: Int
-    private let channels: Int
-    
-    @objc public private(set) var cpuUsage: Double = 0.0
-    @objc public private(set) var averageCPULoad: Double = 0.0
-    @objc public private(set) var peakCPULoad: Double = 0.0
-    
-    @objc public init(sampleRate: Double, bufferSize: Int, channels: Int) {
-        self.sampleRate = sampleRate
-        self.bufferSize = bufferSize
-        self.channels = channels
-        super.init()
-        print("✅ OptimizedAudioBridge iOS initialized: \(sampleRate)Hz")
-    }
-    
-    @objc public func startAudioEngine() -> Bool { return true }
-    @objc public func stopAudioEngine() -> Bool { return true }
-    @objc public func setWetDryMix(_ wetDry: Float) { print("🎛️ iOS: Wet/Dry = \(wetDry)") }
-    @objc public func setInputGain(_ gain: Float) { print("🎛️ iOS: Input gain = \(gain)") }
-    @objc public func setOutputGain(_ gain: Float) { print("🎛️ iOS: Output gain = \(gain)") }
-    @objc public func setReverbPreset(_ presetIndex: Int) { print("🎛️ iOS: Preset = \(presetIndex)") }
-    @objc public func setReverbDecay(_ decay: Float) { print("🎛️ iOS: Decay = \(decay)") }
-    @objc public func setReverbSize(_ size: Float) { print("🎛️ iOS: Size = \(size)") }
-    @objc public func setDampingHF(_ dampingHF: Float) { print("🎛️ iOS: Damping HF = \(dampingHF)") }
-    @objc public func setDampingLF(_ dampingLF: Float) { print("🎛️ iOS: Damping LF = \(dampingLF)") }
-    @objc public func getInputLevel() -> Float { return 0.0 }
-    @objc public func getOutputLevel() -> Float { return 0.0 }
-    @objc public func startRecording(_ filename: String) -> Bool { return true }
-    @objc public func stopRecording() -> Bool { return true }
-    @objc public func isRecording() -> Bool { return false }
-    @objc public func optimizeForLowLatency(_ enabled: Bool) { }
-    @objc public func enableCPUThrottling(_ enabled: Bool) { }
-}
+// Swift placeholder removed - using real C++ OptimizedAudioBridge from bridging header
 
 /// Responsive parameter controller for iOS with debouncing and thread-safe audio parameter updates
 /// Prevents audio thread overload while maintaining smooth UI responsiveness

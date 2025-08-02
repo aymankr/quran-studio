@@ -25,8 +25,8 @@ typedef NS_ENUM(NSInteger, ReverbPresetType) {
 - (void)cleanup;
 
 /// Core processing - designed to be called from audio thread
-- (void)processAudioWithInputs:(const float * const * _Nonnull)inputs
-                       outputs:(float * const * _Nonnull)outputs
+- (void)processAudioWithInputs:(const float * _Nonnull const * _Nonnull)inputs
+                       outputs:(float * _Nonnull const * _Nonnull)outputs
                    numChannels:(int)numChannels
                     numSamples:(int)numSamples;
 

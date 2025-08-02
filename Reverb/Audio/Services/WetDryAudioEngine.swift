@@ -417,16 +417,16 @@ class WetDryAudioEngine: ObservableObject {
         
         // Apply to C++ ReverbBridge if available
         if let bridge = reverbBridge {
-            let cppPreset: ReverbBridge.ReverbPresetType
+            let cppPreset: Int32
             switch preset {
-            case .clean: cppPreset = .clean
-            case .vocalBooth: cppPreset = .vocalBooth
-            case .studio: cppPreset = .studio
-            case .cathedral: cppPreset = .cathedral
-            case .custom: cppPreset = .custom
+            case .clean: cppPreset = 0
+            case .vocalBooth: cppPreset = 1
+            case .studio: cppPreset = 2
+            case .cathedral: cppPreset = 3
+            case .custom: cppPreset = 4
             }
             
-            bridge.setPreset(cppPreset)
+            bridge.setPreset(ReverbPresetType(rawValue: Int(cppPreset))!)
         }
         
         logger.info("🎛️ Applied reverb preset: \(preset.rawValue)")

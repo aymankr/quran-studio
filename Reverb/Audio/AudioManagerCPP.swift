@@ -60,7 +60,7 @@ public class AudioManagerCPP: ObservableObject {
     public func startMonitoring() {
         print("🎵 AudioManagerCPP: Starting monitoring...")
         
-        audioEngineService?.setMonitoring(enabled: true)
+        audioEngineService?.startMonitoring()
         isMonitoring = true
         
         // Apply current preset
@@ -72,7 +72,7 @@ public class AudioManagerCPP: ObservableObject {
     public func stopMonitoring() {
         print("🛑 AudioManagerCPP: Stopping monitoring...")
         
-        audioEngineService?.setMonitoring(enabled: false)
+        audioEngineService?.stopMonitoring()
         isMonitoring = false
         
         print("✅ AudioManagerCPP: Monitoring stopped")
@@ -104,7 +104,7 @@ public class AudioManagerCPP: ObservableObject {
         print("🎛️ AudioManagerCPP: Updating reverb preset to \(preset.rawValue)")
         
         selectedReverbPreset = preset
-        audioEngineService?.updateReverbPreset(preset: preset)
+        audioEngineService?.setReverbPreset(preset)
         
         if preset == .custom {
             // Update custom settings
@@ -266,7 +266,7 @@ public class AudioManagerCPP: ObservableObject {
         print("   - Audio Level: \(String(format: "%.3f", audioLevel))")
         print("   - Recordings: \(recordingHistory.count)")
         
-        audioEngineService?.diagnosticMonitoring()
+        audioEngineService?.printDiagnostics()
     }
     
     public func diagnostic() { performDiagnostics() }

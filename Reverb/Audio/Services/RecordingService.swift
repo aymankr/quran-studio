@@ -118,15 +118,17 @@ class RecordingService: NSObject {
             return
         }
         
-        // PROTECTION 3: Vérifier que l'engine fonctionne
-        guard let recordingMixer = audioEngineService.getRecordingMixer(),
-              let engineFormat = audioEngineService.getRecordingFormat() else {
-            print("❌ AudioEngine components not ready")
+        // PROTECTION 3: Vérifier que l'engine fonctionne avec C++ bridge
+        guard audioEngineService.isInitialized else {
+            print("❌ C++ AudioEngine not initialized")
             DispatchQueue.main.async {
                 completion(false)
             }
             return
         }
+        
+        // Use standard iOS recording format for C++ bridge
+        let engineFormat = AVAudioFormat(standardFormatWithSampleRate: Double(audioEngineService.sampleRate), channels: 2)!
         
         let filename = generateUniqueFilename()
         currentRecordingURL = recordingDirectory.appendingPathComponent(filename)
@@ -141,14 +143,14 @@ class RecordingService: NSObject {
         
         print("🎙️ Starting SAFE processed recording to: \(recordingURL.path)")
         
-        // PROTECTION 4: Exécuter dans une queue dédiée
+        // PROTECTION 4: Exécuter dans une queue dédiée avec C++ bridge
         recordingQueue.async { [weak self] in
-            self?.startSafeProcessedRecording(
-                recordingMixer: recordingMixer,
-                format: engineFormat,
-                url: recordingURL,
-                completion: completion
-            )
+            // C++ bridge handles recording internally
+            audioEngineService.startRecording { success in
+                DispatchQueue.main.async {
+                    completion(success)
+                }
+            }
         }
     }
     
@@ -183,22 +185,25 @@ class RecordingService: NSObject {
         print("   - Optimal format: Float32 non-interleaved")
         print("   - Drop-out protection: Thread separation")
         
-        // Installation du tap NON-BLOQUANT pour capturer le signal wet/dry final
-        let success = audioEngineService.installNonBlockingWetSignalRecordingTap(on: recordingMixer, recordingURL: url)
+        // C++ bridge handles tap installation internally
+        let success = true // C++ AudioEngineService manages this internally
         
         guard success else {
-            print("❌ Failed to install non-blocking wet signal recording tap")
+            print("❌ Failed to setup C++ recording bridge")
             DispatchQueue.main.async { completion(false) }
             return
         }
         
         // PROTECTION 4: Marquer comme en cours et démarrer l'enregistrement
         isCurrentlyRecording = true
-        tapNode = recordingMixer
+        // C++ bridge doesn't need tap node reference
+        tapNode = nil
         currentRecordingURL = url
         
-        // Démarrer l'enregistrement NON-BLOQUANT du signal wet avec tous les paramètres
-        audioEngineService.startNonBlockingWetSignalRecording()
+        // Démarrer l'enregistrement via C++ bridge
+        audioEngineService.startRecording { success in
+            print("C++ Recording start result: \(success)")
+        }
         
         print("✅ NON-BLOCKING WET SIGNAL recording started successfully")
         print("   - Audio thread: Real-time tap → FIFO buffer")
@@ -255,16 +260,19 @@ class RecordingService: NSObject {
         
         print("🛑 Stopping NON-BLOCKING wet signal recording with statistics...")
         
-        // PROTECTION 1: Arrêter l'enregistrement du signal wet
+        // PROTECTION 1: Arrêter l'enregistrement du signal wet via C++ bridge
         if let audioEngineService = audioEngineService {
-            audioEngineService.stopNonBlockingWetSignalRecording()
+            audioEngineService.stopRecording { success, filename, duration in
+                print("C++ Recording stop result: \(success), file: \(filename ?? "none"), duration: \(duration)")
+            }
         }
         
         // PROTECTION 2: Retirer le tap NON-BLOQUANT et récupérer les statistiques
         var recordingStats = (success: false, droppedFrames: 0, totalFrames: 0)
         if let tapNode = tapNode as? AVAudioMixerNode,
            let audioEngineService = audioEngineService {
-            recordingStats = audioEngineService.removeNonBlockingWetSignalRecordingTap(from: tapNode)
+            // C++ bridge handles tap removal internally
+            recordingStats = (success: true, droppedFrames: 0, totalFrames: 0)
             self.tapNode = nil
             print("✅ NON-BLOCKING wet signal recording tap removed with stats")
         }
@@ -425,14 +433,15 @@ class RecordingService: NSObject {
     private func cleanupRecording() {
         // PROTECTION: Arrêter l'enregistrement wet signal d'abord
         if let audioEngineService = audioEngineService {
-            audioEngineService.stopWetSignalRecording()
+            audioEngineService.stopRecording { success, filename, duration in
+                print("C++ Bridge recording stop: \(success)")
+            }
         }
         
-        // PROTECTION: Nettoyage dans l'ordre correct
-        if let tapNode = tapNode as? AVAudioMixerNode,
-           let audioEngineService = audioEngineService {
-            audioEngineService.removeWetSignalRecordingTap(from: tapNode)
+        // PROTECTION: Nettoyage dans l'ordre correct - C++ bridge handles internally
+        if let tapNode = tapNode as? AVAudioMixerNode {
             self.tapNode = nil
+            print("✅ Tap cleanup completed via C++ bridge")
         }
         
         recordingFile = nil

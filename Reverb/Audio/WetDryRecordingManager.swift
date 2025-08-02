@@ -2,66 +2,7 @@ import Foundation
 import AVFoundation
 import OSLog
 
-/// iOS-native NonBlockingAudioRecorder implementation
-@objc
-public class NonBlockingAudioRecorder: NSObject {
-    private let recordingURL: URL
-    private let format: AVAudioFormat
-    private let bufferSize: AVAudioFrameCount
-    private var isRecording = false
-    private var frameCount: Int64 = 0
-    
-    @objc public init(recording url: URL, format: AVAudioFormat, bufferSize: AVAudioFrameCount) {
-        self.recordingURL = url
-        self.format = format
-        self.bufferSize = bufferSize
-        super.init()
-        print("✅ NonBlockingAudioRecorder iOS initialized: \(url.lastPathComponent)")
-    }
-    
-    @objc public func startRecording() {
-        isRecording = true
-        frameCount = 0
-        print("📹 NonBlockingAudioRecorder iOS: Started recording")
-    }
-    
-    @objc public func stopRecordingBasic() {
-        isRecording = false
-        print("🛑 NonBlockingAudioRecorder iOS: Stopped recording (\(frameCount) frames)")
-    }
-    
-    @objc public func writeAudioBuffer(_ buffer: AVAudioPCMBuffer) -> Bool {
-        guard isRecording else { return false }
-        frameCount += Int64(buffer.frameLength)
-        return true
-    }
-    
-    @objc public func isCurrentlyRecording() -> Bool {
-        return isRecording
-    }
-    
-    // Additional methods required by AudioEngineService
-    public func startRecording(to url: URL, format: AVAudioFormat) -> Bool {
-        // For compatibility with AudioEngineService expectations
-        startRecording()
-        return true
-    }
-    
-    public func stopRecording() -> (success: Bool, droppedFrames: Int, totalFrames: Int) {
-        let wasRecording = isRecording
-        isRecording = false
-        print("🛑 NonBlockingAudioRecorder iOS: Stopped recording (\(frameCount) frames)")
-        return (success: wasRecording, droppedFrames: 0, totalFrames: Int(frameCount))
-    }
-    
-    public var statistics: (bufferedFrames: Int, droppedFrames: Int, totalFrames: Int) {
-        return (bufferedFrames: 0, droppedFrames: 0, totalFrames: Int(frameCount))
-    }
-    
-    public var bufferUsagePercentage: Float {
-        return 0.0 // Simplified for iOS compatibility
-    }
-}
+// Swift placeholder removed - using real C++ NonBlockingAudioRecorder from bridging header
 
 /// Advanced recording manager for simultaneous wet/dry/mix recording
 /// Supports professional post-production workflows with separate wet and dry tracks
@@ -284,7 +225,7 @@ class WetDryRecordingManager: ObservableObject {
     private func installRecordingTaps(mode: RecordingMode, audioEngineService: AudioEngineService) async throws {
         
         // Get audio nodes for tapping
-        guard let recordingMixer = audioEngineService.getRecordingMixer() else {
+        guard let recordingMixer = audioEngineService.getRecordingMixerPlaceholder() else {
             throw RecordingError.audioEngineUnavailable
         }
         
@@ -371,7 +312,7 @@ class WetDryRecordingManager: ObservableObject {
             }
         } else {
             // Fallback: Use existing recording mixer with note about limitations
-            guard let recordingMixer = audioEngineService.getRecordingMixer() else {
+            guard let recordingMixer = audioEngineService.getRecordingMixerPlaceholder() else {
                 throw RecordingError.audioEngineUnavailable
             }
             
@@ -433,14 +374,14 @@ class WetDryRecordingManager: ObservableObject {
             
             // Remove mix tap
             if mixRecorder != nil {
-                if let recordingMixer = audioEngineService.getRecordingMixer() {
+                if let recordingMixer = audioEngineService.getRecordingMixerPlaceholder() {
                     recordingMixer.removeTap(onBus: 0)
                 }
             }
             
             // Remove wet tap (was on recording mixer in fallback)
             if wetRecorder != nil {
-                if let recordingMixer = audioEngineService.getRecordingMixer() {
+                if let recordingMixer = audioEngineService.getRecordingMixerPlaceholder() {
                     recordingMixer.removeTap(onBus: 0)
                 }
             }

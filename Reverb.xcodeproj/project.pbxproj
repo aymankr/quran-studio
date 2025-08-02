@@ -20,8 +20,6 @@
 		00D3BDF82E364B3E003A142C /* FDNReverb.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 00D3BDEC2E364B3E003A142C /* FDNReverb.cpp */; };
 		00D3BDF92E364B3E003A142C /* AudioMath.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 00D3BDE52E364B3E003A142C /* AudioMath.cpp */; };
 		00E061422E2C5EBC00CE6783 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00E061412E2C5EB800CE6783 /* ContentView.swift */; };
-		6E21C5CC9A657EFD96DC67FC /* libVoiceMonitorDSP.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 70FD85911B871A1B713B03BE /* libVoiceMonitorDSP.a */; };
-		7681F47AE37B8A13854D018E /* libVoiceMonitorBridge.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C52FBCE560E343B9872418BA /* libVoiceMonitorBridge.a */; };
 		A1636FE5F4DD111F6EF05931 /* AudioManagerProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 848DBA3E7336C12AC5A8CC52 /* AudioManagerProtocol.swift */; };
 		A1A1A1A1A1A1A1A1A1A1A1A1 /* ReverbApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A1A1A1A1A1A1A1A1A1A1A2 /* ReverbApp.swift */; };
 		A1A1A1A1A1A1A1A1A1A1A1A5 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A1A1A1A1A1A1A1A1A1A1A1A6 /* Assets.xcassets */; };
@@ -57,6 +55,9 @@
 		98B54951613C4486B1AAB0DF /* iOSTapRecordingValidator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99567027362344BD8E1C2225 /* iOSTapRecordingValidator.swift */; };
 		04327A9CB765445B902244A0 /* CrossPlatformAudioComparator.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA9803634F164CB8961680FF /* CrossPlatformAudioComparator.swift */; };
 		67B523194B8F4062937C8DEA /* OptimizedAudioBridge.mm in Sources */ = {isa = PBXBuildFile; fileRef = 3FE80ABEC73F486FA12D096E /* OptimizedAudioBridge.mm */; };
+		00D3BDF32E364B3E003A142C /* ReverbBridge.mm in Sources */ = {isa = PBXBuildFile; fileRef = 00D3BDE02E364B3E003A142C /* ReverbBridge.mm */; };
+		00D3BDF52E364B3E003A142C /* AudioIOBridge.mm in Sources */ = {isa = PBXBuildFile; fileRef = 00D3BDDE2E364B3E003A142C /* AudioIOBridge.mm */; };
+		E8F4A2B39C4D4F1B8A5E7C21 /* NonBlockingAudioRecorder.mm in Sources */ = {isa = PBXBuildFile; fileRef = D6B3E1F27A8E42C9B2F4D8A7 /* NonBlockingAudioRecorder.mm */; };
 		/* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -66,7 +67,9 @@
 		00C17FB22D8B280200930ED5 /* AudioEngineService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioEngineService.swift; sourceTree = "<group>"; };
 		00C17FB32D8B280200930ED5 /* RecordingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingService.swift; sourceTree = "<group>"; };
 		00C17FB62D8B280200930ED5 /* AudioManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioManager.swift; sourceTree = "<group>"; };
+		00D3BDDE2E364B3E003A142C /* AudioIOBridge.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = AudioIOBridge.mm; sourceTree = "<group>"; };
 		00D3BDDF2E364B3E003A142C /* AudioIOBridge.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AudioIOBridge.h; sourceTree = "<group>"; };
+		00D3BDE02E364B3E003A142C /* ReverbBridge.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = ReverbBridge.mm; sourceTree = "<group>"; };
 		00D3BDE12E364B3E003A142C /* ReverbBridge.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ReverbBridge.h; sourceTree = "<group>"; };
 		00D3BDE42E364B3E003A142C /* AudioMath.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = AudioMath.hpp; sourceTree = "<group>"; };
 		00D3BDE52E364B3E003A142C /* AudioMath.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = AudioMath.cpp; sourceTree = "<group>"; };
@@ -82,7 +85,6 @@
 		00D3BDF02E364B3E003A142C /* ReverbEngine.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = ReverbEngine.cpp; sourceTree = "<group>"; };
 		00E061412E2C5EB800CE6783 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		1C9B2E6A74172BC935A118B3 /* AudioManagerSimple.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioManagerSimple.swift; sourceTree = "<group>"; };
-		70FD85911B871A1B713B03BE /* libVoiceMonitorDSP.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libVoiceMonitorDSP.a; path = Reverb/CPPLibs/libVoiceMonitorDSP.a; sourceTree = "<group>"; };
 		7900492AE0924F2765AF71F0 /* ContentViewSimple.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentViewSimple.swift; sourceTree = "<group>"; };
 		848DBA3E7336C12AC5A8CC52 /* AudioManagerProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioManagerProtocol.swift; sourceTree = "<group>"; };
 		A1A1A1A1A1A1A1A1A1A1A1A2 /* ReverbApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReverbApp.swift; sourceTree = "<group>"; };
@@ -93,7 +95,6 @@
 		A1A1A1A1A1A1A1A1A1A1A1B1 /* Reverb.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Reverb.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B4BC4E5D106FF875B086A5F1 /* AudioManagerCPP.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioManagerCPP.swift; sourceTree = "<group>"; };
 		C360BDD45786A940B2913511 /* ContentViewCPP.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentViewCPP.swift; sourceTree = "<group>"; };
-		C52FBCE560E343B9872418BA /* libVoiceMonitorBridge.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libVoiceMonitorBridge.a; path = Reverb/CPPLibs/libVoiceMonitorBridge.a; sourceTree = "<group>"; };
 		9A0FF2D690604A2583503008 /* SwiftAudioManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftAudioManager.swift; sourceTree = "<group>"; };
 		79104D5AA5CB4F88A04F0F17 /* AudioManagerUltraSimple.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioManagerUltraSimple.swift; sourceTree = "<group>"; };
 		12B711520F61450295A9E78D /* RecordingSessionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingSessionManager.swift; sourceTree = "<group>"; };
@@ -125,6 +126,8 @@
 		F68BB61EEB7446D196F31B3D /* vDSPIntegration.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = vDSPIntegration.hpp; sourceTree = "<group>"; };
 		7F612148ED614A4598FEA247 /* MemoryBatteryManager.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = MemoryBatteryManager.hpp; sourceTree = "<group>"; };
 		5A16E4E51C7A402C8826417B /* ParameterSmoothing.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = ParameterSmoothing.hpp; sourceTree = "<group>"; };
+		D6B3E1F27A8E42C9B2F4D8A7 /* NonBlockingAudioRecorder.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = NonBlockingAudioRecorder.mm; sourceTree = "<group>"; };
+		A4C8F9E65B2D47A1963E5F84 /* NonBlockingAudioRecorder.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = NonBlockingAudioRecorder.h; sourceTree = "<group>"; };
 		/* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -132,8 +135,6 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				6E21C5CC9A657EFD96DC67FC /* libVoiceMonitorDSP.a in Frameworks */,
-				7681F47AE37B8A13854D018E /* libVoiceMonitorBridge.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -204,8 +205,6 @@
 				1C9B2E6A74172BC935A118B3 /* AudioManagerSimple.swift */,
 				848DBA3E7336C12AC5A8CC52 /* AudioManagerProtocol.swift */,
 				7900492AE0924F2765AF71F0 /* ContentViewSimple.swift */,
-				70FD85911B871A1B713B03BE /* libVoiceMonitorDSP.a */,
-				C52FBCE560E343B9872418BA /* libVoiceMonitorBridge.a */,
 			);
 			name = "Recovered References";
 			sourceTree = "<group>";
@@ -213,7 +212,9 @@
 		00D3BDE32E364B3E003A142C /* AudioBridge */ = {
 			isa = PBXGroup;
 			children = (
+				00D3BDDE2E364B3E003A142C /* AudioIOBridge.mm */,
 				00D3BDDF2E364B3E003A142C /* AudioIOBridge.h */,
+				00D3BDE02E364B3E003A142C /* ReverbBridge.mm */,
 				00D3BDE12E364B3E003A142C /* ReverbBridge.h */,
 			);
 			path = AudioBridge;
@@ -300,6 +301,8 @@
 				16BFC77ED3A4452D990B2369 /* BackgroundAudioManager.swift */,
 				72C9C1C9F1AA47B7BF79E0EE /* InstrumentsProfiler.swift */,
 				3FE80ABEC73F486FA12D096E /* OptimizedAudioBridge.mm */,
+				D6B3E1F27A8E42C9B2F4D8A7 /* NonBlockingAudioRecorder.mm */,
+				A4C8F9E65B2D47A1963E5F84 /* NonBlockingAudioRecorder.h */,
 				CBD7897A47444A39967FD3A1 /* ARM64Optimizations.hpp */,
 				F68BB61EEB7446D196F31B3D /* vDSPIntegration.hpp */,
 				7F612148ED614A4598FEA247 /* MemoryBatteryManager.hpp */,
@@ -481,7 +484,11 @@
 				3C83E53AD74C4F04A4A9FF34 /* AudioInterruptionHandler.swift in Sources */,
 				98B54951613C4486B1AAB0DF /* iOSTapRecordingValidator.swift in Sources */,
 				04327A9CB765445B902244A0 /* CrossPlatformAudioComparator.swift in Sources */,
-				67B523194B8F4062937C8DEA /* OptimizedAudioBridge.mm in Sources */,);
+				67B523194B8F4062937C8DEA /* OptimizedAudioBridge.mm in Sources */,
+				00D3BDF32E364B3E003A142C /* ReverbBridge.mm in Sources */,
+				00D3BDF52E364B3E003A142C /* AudioIOBridge.mm in Sources */,
+				E8F4A2B39C4D4F1B8A5E7C21 /* NonBlockingAudioRecorder.mm in Sources */,
+			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
@@ -547,15 +554,13 @@
 					"$(SRCROOT)/Reverb/CPPEngine",
 					"$(SRCROOT)/Shared",
 				);
-				LIBRARY_SEARCH_PATHS = "$(SRCROOT)/Reverb/CPPLibs";
+				LIBRARY_SEARCH_PATHS = "";
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				OTHER_LDFLAGS = (
-					"-lVoiceMonitorDSP",
-					"-lVoiceMonitorBridge",
 					"-lc++",
 				);
 				SDKROOT = macosx;
@@ -619,14 +624,12 @@
 					"$(SRCROOT)/Reverb/CPPEngine",
 					"$(SRCROOT)/Shared",
 				);
-				LIBRARY_SEARCH_PATHS = "$(SRCROOT)/Reverb/CPPLibs";
+				LIBRARY_SEARCH_PATHS = "";
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				OTHER_LDFLAGS = (
-					"-lVoiceMonitorDSP",
-					"-lVoiceMonitorBridge",
 					"-lc++",
 				);
 				SDKROOT = macosx;
@@ -667,11 +670,9 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				LIBRARY_SEARCH_PATHS = "$(SRCROOT)/Reverb/CPPLibs";
+				LIBRARY_SEARCH_PATHS = "";
 				MARKETING_VERSION = 1.0;
 				OTHER_LDFLAGS = (
-					"-lVoiceMonitorDSP",
-					"-lVoiceMonitorBridge",
 					"-lc++",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.quran.Reverb;

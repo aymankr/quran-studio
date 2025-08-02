@@ -129,11 +129,14 @@ class SwiftAudioManager: ObservableObject {
     // MARK: - Recording Support (delegates to AudioManagerCPP)
     
     func getRecordingMixer() -> AVAudioMixerNode? {
-        return audioManager.audioEngineService?.getRecordingMixer()
+        // AudioEngineService using C++ doesn't expose mixers directly
+        // Return nil for now - recording is handled internally by C++ bridge
+        return nil
     }
     
     func getRecordingFormat() -> AVAudioFormat? {
-        return audioManager.audioEngineService?.getOptimalRecordingFormat()
+        // Use standard iOS recording format for now
+        return AVAudioFormat(standardFormatWithSampleRate: 48000, channels: 2)
     }
     
     // MARK: - Performance Monitoring (placeholders)
@@ -160,13 +163,14 @@ class SwiftAudioManager: ObservableObject {
 // MARK: - Extensions for ReverbPreset compatibility
 
 extension ReverbPreset {
-    func toCppPresetType() -> ReverbBridge.ReverbPresetType {
+    func toCppPresetType() -> Int {
+        // Map to integer values that match the C++ enum
         switch self {
-        case .clean: return .clean
-        case .vocalBooth: return .vocalBooth
-        case .studio: return .studio
-        case .cathedral: return .cathedral
-        case .custom: return .custom
+        case .clean: return 0
+        case .vocalBooth: return 1
+        case .studio: return 2
+        case .cathedral: return 3
+        case .custom: return 4
         }
     }
 }

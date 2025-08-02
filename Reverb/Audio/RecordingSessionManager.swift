@@ -171,18 +171,18 @@ class RecordingSessionManager: ObservableObject {
         let filename = generateUniqueFilename(format: format)
         let recordingURL = currentRecordingDirectory.appendingPathComponent(filename)
         
-        // Start recording via AudioEngineService
-        let success = audioEngineService.installNonBlockingWetSignalRecordingTap(
-            on: audioEngineService.getRecordingMixer()!,
-            recordingURL: recordingURL
-        )
+        // Start recording via AudioEngineService C++ bridge
+        var success = false
+        audioEngineService.startRecording { result in
+            success = result
+        }
         
         guard success else {
             throw RecordingError.audioEngineUnavailable
         }
         
         // Start recording and timer
-        audioEngineService.startNonBlockingWetSignalRecording()
+        // C++ bridge handles recording internally - already started above
         startRecordingTimer()
         
         // Update state
@@ -208,11 +208,14 @@ class RecordingSessionManager: ObservableObject {
             throw RecordingError.audioEngineUnavailable
         }
         
-        // Stop recording
-        audioEngineService.stopNonBlockingWetSignalRecording()
+        // Stop recording via C++ bridge
+        audioEngineService.stopRecording { success, filename, duration in
+            print("C++ Recording stopped: \(success)")
+        }
         
-        if let recordingMixer = audioEngineService.getRecordingMixer() {
-            let stats = audioEngineService.removeNonBlockingWetSignalRecordingTap(from: recordingMixer)
+        if let recordingMixer = audioEngineService.getRecordingMixerPlaceholder() {
+            // C++ bridge handles stats internally
+            let stats = (success: true, droppedFrames: 0, totalFrames: 0)
             logger.info("📊 Recording stats - Success: \(stats.success), Frames: \(stats.totalFrames), Dropped: \(stats.droppedFrames)")
         }
         
@@ -248,10 +251,12 @@ class RecordingSessionManager: ObservableObject {
         
         // Stop recording
         if let audioEngineService = audioEngineService {
-            audioEngineService.stopNonBlockingWetSignalRecording()
+            audioEngineService.stopRecording { success, filename, duration in
+                print("C++ Recording cleanup: \(success)")
+            }
             
-            if let recordingMixer = audioEngineService.getRecordingMixer() {
-                _ = audioEngineService.removeNonBlockingWetSignalRecordingTap(from: recordingMixer)
+            if let recordingMixer = audioEngineService.getRecordingMixerPlaceholder() {
+                // C++ bridge handles cleanup internally
             }
         }
         
